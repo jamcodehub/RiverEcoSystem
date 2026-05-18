@@ -1,7 +1,20 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useMemo } from 'react';
 
 const EcosystemCanvas = ({ creatures, robots }) => {
   const canvasRef = useRef(null);
+  
+  // Generate static reeds once
+  const staticReeds = useMemo(() => {
+    const reeds = [];
+    for (let i = 0; i < 10; i++) {
+      reeds.push({
+        x: (i * 100) + 20, // Static positioning
+        topY: 10,
+        bottomY: null, // Will be calculated based on canvas height
+      });
+    }
+    return reeds;
+  }, []);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -40,15 +53,14 @@ const EcosystemCanvas = ({ creatures, robots }) => {
       ctx.stroke();
     }
 
-    // Draw plants/reeds on banks
+    // Draw plants/reeds on banks (static)
     ctx.fillStyle = '#5a8c4a';
-    for (let i = 0; i < 10; i++) {
-      const x = Math.random() * width;
+    staticReeds.forEach(reed => {
       // Top reeds
-      ctx.fillRect(x, 10, 3, 40);
+      ctx.fillRect(reed.x, reed.topY, 3, 40);
       // Bottom reeds
-      ctx.fillRect(x, height - 40, 3, 40);
-    }
+      ctx.fillRect(reed.x, height - 40, 3, 40);
+    });
 
     // Draw rocks
     ctx.fillStyle = '#8b8680';

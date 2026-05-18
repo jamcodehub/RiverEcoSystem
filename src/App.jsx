@@ -97,22 +97,49 @@ function App() {
         setRobots(prevRobots => {
           return prevRobots
             .map(robot => {
-              const mosquitoes = creatures.filter(
-                c => c.type === 'mosquito' && distance(robot, c) < 150
-              );
+              let updated = { ...robot };
 
-              if (mosquitoes.length > 0 && robot.code.some(b => b.includes('mosquito'))) {
-                const target = mosquitoes[0];
-                if (robot.code.some(b => b.includes('rotate'))) {
-                  // Remove target mosquito
-                  setCreatures(prev => prev.filter(c => c.id !== target.id));
+              // Check if robot has swim command
+              const hasSwim = robot.code.some(b => typeof b === 'string' && b.includes('swim'));
+              
+              if (hasSwim) {
+                // Make robot swim in current direction
+                const swimSpeed = 2;
+                updated.vx = Math.cos(robot.direction) * swimSpeed;
+                updated.vy = Math.sin(robot.direction) * swimSpeed;
+                
+                // Randomly change direction occasionally
+                if (Math.random() < 0.02) {
+                  updated.direction = Math.random() * Math.PI * 2;
                 }
               }
 
+              // Update position
+              updated.x += updated.vx || 0;
+              updated.y += updated.vy || 0;
+
+              // Boundary wrapping
+              const CANVAS_W = 1000;
+              const CANVAS_H = 500;
+              if (updated.x < 0) updated.x += CANVAS_W;
+              if (updated.x > CANVAS_W) updated.x -= CANVAS_W;
+              if (updated.y < 50) updated.y = 50;
+              if (updated.y > CANVAS_H - 50) updated.y = CANVAS_H - 50;
+
+              // Check for mosquitoes to trap/kill
+              const mosquitoes = creatures.filter(
+                c => c.type === 'mosquito' && distance(updated, c) < 20
+              );
+
+              if (mosquitoes.length > 0 && robot.code.some(b => typeof b === 'string' && b.includes('rotate'))) {
+                // Remove target mosquito
+                setCreatures(prev => prev.filter(c => c.id !== mosquitoes[0].id));
+              }
+
               return {
-                ...robot,
-                age: robot.age + 1,
-                alive: robot.age < 3000,
+                ...updated,
+                age: updated.age + 1,
+                alive: updated.age < 3000,
               };
             })
             .filter(r => r.alive);
@@ -288,6 +315,9 @@ function App() {
       id: Math.random(),
       x: Math.random() * 800 + 100,
       y: Math.random() * 300 + 100,
+      vx: 0,
+      vy: 0,
+      direction: 0, // Angle in radians
       code: code,
       age: 0,
       alive: true,
