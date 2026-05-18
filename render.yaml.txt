@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: werribee-ecosystem
+    env: static
+    buildCommand: npm install && npm run build
+    staticPublishPath: ./dist
+    routes:
+      - path: /*
+        methods:
+          - GET
+        dest: /index.html
