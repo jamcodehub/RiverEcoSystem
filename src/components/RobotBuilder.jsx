@@ -305,7 +305,7 @@ const RobotBuilder = ({ onDeploy, onClose, selectedCode, setSelectedCode }) => {
           <h4>💡 Pro Tips:</h4>
           <ul>
             <li><strong>Sensors</strong> detect threats - click inside them to add actions</li>
-            <li><strong>Motors</strong make robots move or act - swim/trap/kill</li>
+            <li><strong>Motors</strong> make robots move or act - swim/trap/kill</li>
             <li><strong>Repeat</strong> blocks can contain other blocks for complex logic</li>
             <li>Deploy multiple robots with different strategies to protect the river</li>
           </ul>
