@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Werribee River Ecosystem Simulator</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<div class="container">
+  <div class="top-bar">
+    <h1>🌊 Werribee River Ecosystem Simulator</h1>
+    <div class="stats">
+      <div class="stat-item">
+        <span class="creature-indicator" style="background: #2ecc71;"></span>
+        <span>Frogs: <span class="stat-count" id="frog-count">5</span></span>
+      </div>
+      <div class="stat-item">
+        <span class="creature-indicator" style="background: #3498db;"></span>
+        <span>Fish: <span class="stat-count" id="fish-count">3</span></span>
+      </div>
+      <div class="stat-item">
+        <span class="creature-indicator" style="background: #e74c3c;"></span>
+        <span>Mosquito Fish: <span class="stat-count" id="mosq-count">0</span></span>
+      </div>
+      <div class="stat-item">
+        <span class="creature-indicator" style="background: #f39c12;"></span>
+        <span>Robots: <span class="stat-count" id="robot-count">0</span></span>
+      </div>
+    </div>
+  </div>
+
+  <div class="canvas-wrapper">
+    <canvas id="ecosystem" width="800" height="400"></canvas>
+  </div>
+
+  <div class="menu-bar">
+    <button onclick="showModal('mosquito-modal')">➕ Add Mosquito Fish</button>
+    <button onclick="showModal('robot-modal')">🤖 Build Robot</button>
+    <button onclick="togglePause()" id="pause-btn">⏸ Pause</button>
+    <button onclick="resetEcosystem()">↻ Reset</button>
+  </div>
+</div>
+
+<!-- Mosquito Fish Modal -->
+<div class="modal" id="mosquito-modal">
+  <div class="modal-content">
+    <div class="modal-header">
+      Introduce Mosquito Fish
+      <button class="modal-close" onclick="closeModal('mosquito-modal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <p>Mosquito fish are invasive predators that attack frogs, eggs, and friendly fish. They reproduce quickly and can devastate your ecosystem if left unchecked.</p>
+      <p class="info-text">💡 Spawn 3 mosquito fish in random locations. Can you protect the ecosystem?</p>
+      <div class="button-group">
+        <button class="primary" onclick="addMosquitoFish(); closeModal('mosquito-modal');">🐠 Spawn Mosquito Fish</button>
+        <button onclick="closeModal('mosquito-modal');">Cancel</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Robot Builder Modal -->
+<div class="modal" id="robot-modal">
+  <div class="modal-content">
+    <div class="modal-header">
+      Build a Robot
+      <button class="modal-close" onclick="closeModal('robot-modal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <p>Program a robot to defend the ecosystem using sensor and motor blocks. Similar to Spike Prime visual coding!</p>
+      <p class="info-text">Select code blocks to build your robot's logic sequence.</p>
+      
+      <div style="margin: 20px 0;">
+        <strong style="font-size: 14px; color: #fff;">Available Code Blocks:</strong>
+        <div class="code-blocks-list">
+          <div class="code-block" onclick="addCodeBlock('if sensor &lt;mosquito_fish&gt;:')">
+            <strong>if sensor &lt;mosquito_fish&gt;:</strong>
+            <span style="font-size: 12px; color: #888;">Detect mosquito fish in range</span>
+          </div>
+          <div class="code-block" onclick="addCodeBlock('  > motor rotate (trap)')">
+            <strong>> motor rotate (trap)</strong>
+            <span style="font-size: 12px; color: #888;">Activate trap to capture target</span>
+          </div>
+          <div class="code-block" onclick="addCodeBlock('  > motor rotate (kill)')">
+            <strong>> motor rotate (kill)</strong>
+            <span style="font-size: 12px; color: #888;">Direct elimination of threat</span>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <strong style="font-size: 14px; color: #fff;">Your Robot Code:</strong>
+        <div class="robot-code" id="robot-code">
+          <span style="color: #555;">Click blocks to build your program...</span>
+        </div>
+      </div>
+
+      <div class="button-group">
+        <button onclick="clearRobotCode()">Clear</button>
+        <button class="primary" onclick="deployRobot(); closeModal('robot-modal');">Deploy Robot</button>
+        <button onclick="closeModal('robot-modal');">Cancel</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="script.js"></script>
+</body>
+</html>

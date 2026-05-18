@@ -1,0 +1,632 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Werribee River Ecosystem Simulator</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    
+    body { 
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #1a1a2e;
+      color: #e0e0e0;
+    }
+    
+    .container { 
+      display: flex; 
+      flex-direction: column; 
+      height: 100vh; 
+      background: #1a1a2e;
+    }
+    
+    .top-bar { 
+      background: #16213e;
+      border-bottom: 1px solid #333;
+      padding: 16px 20px;
+      display: flex; 
+      justify-content: space-between; 
+      align-items: center;
+    }
+    
+    .top-bar h1 { 
+      font-size: 18px; 
+      font-weight: 500;
+      color: #fff;
+    }
+    
+    .stats { 
+      display: flex; 
+      gap: 24px; 
+      font-size: 13px;
+    }
+    
+    .stat-item { 
+      display: flex; 
+      align-items: center; 
+      gap: 8px;
+    }
+    
+    .stat-count { 
+      font-weight: 600;
+      color: #00d4ff;
+    }
+    
+    .creature-indicator { 
+      display: inline-block; 
+      width: 10px; 
+      height: 10px; 
+      border-radius: 50%;
+    }
+    
+    .canvas-wrapper { 
+      flex: 1; 
+      display: flex; 
+      justify-content: center; 
+      align-items: center; 
+      background: linear-gradient(180deg, #87ceeb 0%, #e0f6ff 100%);
+      padding: 20px;
+      overflow: hidden;
+    }
+    
+    canvas { 
+      border: 3px solid #666;
+      background: #e0f6ff;
+      image-rendering: pixelated;
+      image-rendering: -moz-crisp-edges;
+      image-rendering: crisp-edges;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    }
+    
+    .menu-bar { 
+      background: #16213e;
+      border-top: 1px solid #333;
+      padding: 12px 20px;
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    
+    button { 
+      background: #0f3460;
+      border: 1px solid #00d4ff;
+      color: #00d4ff;
+      padding: 10px 16px;
+      border-radius: 6px;
+      cursor: pointer; 
+      font-size: 13px;
+      font-weight: 500;
+      transition: all 0.2s;
+      white-space: nowrap;
+    }
+    
+    button:hover { 
+      background: #1a5276;
+      box-shadow: 0 0 8px rgba(0, 212, 255, 0.3);
+    }
+    
+    button:active { 
+      transform: scale(0.98);
+    }
+    
+    .modal { 
+      display: none; 
+      position: fixed; 
+      top: 0; left: 0; 
+      right: 0; bottom: 0; 
+      background: rgba(0,0,0,0.7);
+      z-index: 1000; 
+      align-items: center; 
+      justify-content: center;
+    }
+    
+    .modal.open { 
+      display: flex;
+    }
+    
+    .modal-content { 
+      background: #16213e;
+      border-radius: 8px;
+      padding: 24px;
+      width: 90%;
+      max-width: 550px;
+      max-height: 80vh;
+      overflow-y: auto;
+      border: 1px solid #333;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+    }
+    
+    .modal-header { 
+      font-size: 18px;
+      font-weight: 600;
+      margin-bottom: 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      color: #fff;
+    }
+    
+    .modal-close { 
+      background: none;
+      border: none;
+      font-size: 24px;
+      cursor: pointer;
+      padding: 0;
+      color: #888;
+      width: 32px;
+      height: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    
+    .modal-close:hover {
+      color: #fff;
+    }
+    
+    .modal-body { 
+      font-size: 13px;
+      line-height: 1.6;
+      color: #e0e0e0;
+    }
+    
+    .modal-body p {
+      margin-bottom: 12px;
+    }
+    
+    .code-block { 
+      background: #0f3460;
+      border: 1px solid #333;
+      border-radius: 6px;
+      padding: 14px;
+      margin: 10px 0;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    
+    .code-block:hover { 
+      background: #1a5276;
+      border-color: #00d4ff;
+      box-shadow: 0 0 8px rgba(0, 212, 255, 0.2);
+    }
+    
+    .code-block strong {
+      display: block;
+      color: #00d4ff;
+      margin-bottom: 4px;
+      font-family: 'Courier New', monospace;
+    }
+    
+    .code-blocks-list { 
+      display: flex; 
+      flex-direction: column; 
+      gap: 8px;
+      margin: 16px 0;
+    }
+    
+    .robot-code { 
+      background: #0a1929;
+      border: 1px solid #333;
+      border-radius: 6px;
+      padding: 14px;
+      margin: 12px 0;
+      min-height: 120px;
+      font-family: 'Courier New', monospace;
+      font-size: 12px;
+      line-height: 1.6;
+      color: #00d4ff;
+      overflow-y: auto;
+      max-height: 200px;
+    }
+    
+    .button-group { 
+      display: flex; 
+      gap: 12px;
+      margin-top: 20px;
+      flex-wrap: wrap;
+    }
+    
+    button.primary { 
+      background: #00d4ff;
+      color: #0a1929;
+      border-color: #00d4ff;
+      font-weight: 600;
+    }
+    
+    button.primary:hover { 
+      background: #00b8d4;
+      box-shadow: 0 0 12px rgba(0, 212, 255, 0.4);
+    }
+    
+    .info-text { 
+      font-size: 12px;
+      color: #888;
+      margin: 8px 0;
+    }
+    
+    ::-webkit-scrollbar {
+      width: 8px;
+    }
+    
+    ::-webkit-scrollbar-track {
+      background: #0f3460;
+    }
+    
+    ::-webkit-scrollbar-thumb {
+      background: #333;
+      border-radius: 4px;
+    }
+    
+    ::-webkit-scrollbar-thumb:hover {
+      background: #555;
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <div class="top-bar">
+    <h1>🌊 Werribee River Ecosystem Simulator</h1>
+    <div class="stats">
+      <div class="stat-item">
+        <span class="creature-indicator" style="background: #2ecc71;"></span>
+        <span>Frogs: <span class="stat-count" id="frog-count">5</span></span>
+      </div>
+      <div class="stat-item">
+        <span class="creature-indicator" style="background: #3498db;"></span>
+        <span>Fish: <span class="stat-count" id="fish-count">3</span></span>
+      </div>
+      <div class="stat-item">
+        <span class="creature-indicator" style="background: #e74c3c;"></span>
+        <span>Mosquito Fish: <span class="stat-count" id="mosq-count">0</span></span>
+      </div>
+      <div class="stat-item">
+        <span class="creature-indicator" style="background: #f39c12;"></span>
+        <span>Robots: <span class="stat-count" id="robot-count">0</span></span>
+      </div>
+    </div>
+  </div>
+
+  <div class="canvas-wrapper">
+    <canvas id="ecosystem" width="800" height="400"></canvas>
+  </div>
+
+  <div class="menu-bar">
+    <button onclick="showModal('mosquito-modal')">➕ Add Mosquito Fish</button>
+    <button onclick="showModal('robot-modal')">🤖 Build Robot</button>
+    <button onclick="togglePause()" id="pause-btn">⏸ Pause</button>
+    <button onclick="resetEcosystem()">↻ Reset</button>
+  </div>
+</div>
+
+<!-- Mosquito Fish Modal -->
+<div class="modal" id="mosquito-modal">
+  <div class="modal-content">
+    <div class="modal-header">
+      Introduce Mosquito Fish
+      <button class="modal-close" onclick="closeModal('mosquito-modal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <p>Mosquito fish are invasive predators that attack frogs, eggs, and friendly fish. They reproduce quickly and can devastate your ecosystem if left unchecked.</p>
+      <p class="info-text">💡 Spawn 3 mosquito fish in random locations. Can you protect the ecosystem?</p>
+      <div class="button-group">
+        <button class="primary" onclick="addMosquitoFish(); closeModal('mosquito-modal');">🐠 Spawn Mosquito Fish</button>
+        <button onclick="closeModal('mosquito-modal');">Cancel</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Robot Builder Modal -->
+<div class="modal" id="robot-modal">
+  <div class="modal-content">
+    <div class="modal-header">
+      Build a Robot
+      <button class="modal-close" onclick="closeModal('robot-modal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <p>Program a robot to defend the ecosystem using sensor and motor blocks. Similar to Spike Prime visual coding!</p>
+      <p class="info-text">Select code blocks to build your robot's logic sequence.</p>
+      
+      <div style="margin: 20px 0;">
+        <strong style="font-size: 14px; color: #fff;">Available Code Blocks:</strong>
+        <div class="code-blocks-list">
+          <div class="code-block" onclick="addCodeBlock('if sensor &lt;mosquito_fish&gt;:')">
+            <strong>if sensor &lt;mosquito_fish&gt;:</strong>
+            <span style="font-size: 12px; color: #888;">Detect mosquito fish in range</span>
+          </div>
+          <div class="code-block" onclick="addCodeBlock('  > motor rotate (trap)')">
+            <strong>> motor rotate (trap)</strong>
+            <span style="font-size: 12px; color: #888;">Activate trap to capture target</span>
+          </div>
+          <div class="code-block" onclick="addCodeBlock('  > motor rotate (kill)')">
+            <strong>> motor rotate (kill)</strong>
+            <span style="font-size: 12px; color: #888;">Direct elimination of threat</span>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <strong style="font-size: 14px; color: #fff;">Your Robot Code:</strong>
+        <div class="robot-code" id="robot-code">
+          <span style="color: #555;">Click blocks to build your program...</span>
+        </div>
+      </div>
+
+      <div class="button-group">
+        <button onclick="clearRobotCode()">Clear</button>
+        <button class="primary" onclick="deployRobot(); closeModal('robot-modal');">Deploy Robot</button>
+        <button onclick="closeModal('robot-modal');">Cancel</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const canvas = document.getElementById('ecosystem');
+const ctx = canvas.getContext('2d', { willReadFrequently: true });
+const PIXEL_SIZE = 8;
+const GRID_W = Math.floor(canvas.width / PIXEL_SIZE);
+const GRID_H = Math.floor(canvas.height / PIXEL_SIZE);
+
+let gameState = {
+  creatures: [],
+  robots: [],
+  paused: false,
+  robotCode: [],
+  gameTime: 0
+};
+
+class Creature {
+  constructor(type, x, y) {
+    this.type = type;
+    this.x = x;
+    this.y = y;
+    this.vx = (Math.random() - 0.5) * 1.5;
+    this.vy = (Math.random() - 0.5) * 1.5;
+    this.age = 0;
+    this.alive = true;
+    
+    this.colors = {
+      frog: '#2ecc71',
+      fish: '#3498db',
+      egg: '#f4d03f',
+      mosquito: '#e74c3c'
+    };
+  }
+  
+  update() {
+    this.x += this.vx;
+    this.y += this.vy;
+    this.age++;
+    
+    // Boundary wrapping
+    if (this.x < 0 || this.x >= GRID_W) this.vx *= -1;
+    if (this.y < 0 || this.y >= GRID_H) this.vy *= -1;
+    this.x = Math.max(0, Math.min(GRID_W - 1, this.x));
+    this.y = Math.max(0, Math.min(GRID_H - 1, this.y));
+    
+    // Lifespan limits
+    if (this.type === 'mosquito' && this.age > 1200) return false;
+    
+    // Eggs hatch into frogs
+    if (this.type === 'egg' && this.age > 300) {
+      gameState.creatures.push(new Creature('frog', this.x, this.y));
+      return false;
+    }
+    
+    // Random egg laying by frogs
+    if (this.type === 'frog' && Math.random() < 0.001 && gameState.creatures.filter(c => c.type === 'egg').length < 5) {
+      gameState.creatures.push(new Creature('egg', this.x + (Math.random() - 0.5) * 10, this.y + (Math.random() - 0.5) * 10));
+    }
+    
+    return this.alive;
+  }
+  
+  render() {
+    ctx.fillStyle = this.colors[this.type] || '#fff';
+    const px = Math.floor(this.x) * PIXEL_SIZE;
+    const py = Math.floor(this.y) * PIXEL_SIZE;
+    
+    if (this.type === 'egg') {
+      ctx.fillRect(px + 2, py + 2, 4, 4);
+    } else {
+      ctx.fillRect(px, py, PIXEL_SIZE, PIXEL_SIZE);
+    }
+  }
+  
+  distance(other) {
+    return Math.hypot(this.x - other.x, this.y - other.y);
+  }
+}
+
+class Robot {
+  constructor(x, y, code) {
+    this.x = x;
+    this.y = y;
+    this.code = code;
+    this.age = 0;
+  }
+  
+  update() {
+    this.age++;
+    
+    // Find mosquito fish in range
+    const mosquitoInRange = gameState.creatures.filter(
+      c => c.type === 'mosquito' && this.distance(c) < 120
+    );
+    
+    // Execute code logic
+    if (mosquitoInRange.length > 0 && this.code.includes('mosquito')) {
+      const target = mosquitoInRange[0];
+      if (this.code.includes('rotate')) {
+        gameState.creatures = gameState.creatures.filter(c => c !== target);
+      }
+    }
+    
+    return this.age < 2500;
+  }
+  
+  render() {
+    ctx.fillStyle = '#f39c12';
+    const px = Math.floor(this.x) * PIXEL_SIZE;
+    const py = Math.floor(this.y) * PIXEL_SIZE;
+    
+    // Draw robot body
+    ctx.fillRect(px, py, PIXEL_SIZE + 2, PIXEL_SIZE + 2);
+    
+    // Draw sensor
+    ctx.strokeStyle = '#e67e22';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(px + 1, py + 1, PIXEL_SIZE, PIXEL_SIZE);
+    
+    // Draw antenna
+    ctx.strokeStyle = '#f39c12';
+    ctx.beginPath();
+    ctx.moveTo(px + PIXEL_SIZE, py);
+    ctx.lineTo(px + PIXEL_SIZE + 4, py - 4);
+    ctx.stroke();
+  }
+  
+  distance(other) {
+    return Math.hypot(this.x - other.x, this.y - other.y);
+  }
+}
+
+function initEcosystem() {
+  gameState.creatures = [];
+  gameState.robots = [];
+  gameState.paused = false;
+  gameState.robotCode = [];
+  gameState.gameTime = 0;
+  
+  // Create initial population
+  for (let i = 0; i < 5; i++) {
+    gameState.creatures.push(new Creature('frog', Math.random() * GRID_W, Math.random() * GRID_H));
+  }
+  for (let i = 0; i < 3; i++) {
+    gameState.creatures.push(new Creature('fish', Math.random() * GRID_W, Math.random() * GRID_H));
+  }
+  for (let i = 0; i < 2; i++) {
+    gameState.creatures.push(new Creature('egg', Math.random() * GRID_W, Math.random() * GRID_H));
+  }
+}
+
+function addMosquitoFish() {
+  for (let i = 0; i < 3; i++) {
+    gameState.creatures.push(new Creature('mosquito', Math.random() * GRID_W, Math.random() * GRID_H));
+  }
+}
+
+function addCodeBlock(block) {
+  gameState.robotCode.push(block);
+  updateRobotCodeDisplay();
+}
+
+function clearRobotCode() {
+  gameState.robotCode = [];
+  updateRobotCodeDisplay();
+}
+
+function updateRobotCodeDisplay() {
+  const codeEl = document.getElementById('robot-code');
+  if (gameState.robotCode.length === 0) {
+    codeEl.innerHTML = '<span style="color: #555;">Click blocks to build your program...</span>';
+  } else {
+    codeEl.innerHTML = gameState.robotCode.map((block, i) => {
+      const indent = block.startsWith('  >') ? '  ' : '';
+      return `<div style="margin: 4px 0;">${indent}${block}</div>`;
+    }).join('');
+  }
+}
+
+function deployRobot() {
+  if (gameState.robotCode.length === 0) {
+    alert('Add at least one code block to your robot!');
+    return;
+  }
+  
+  const robot = new Robot(
+    Math.random() * GRID_W,
+    Math.random() * GRID_H,
+    gameState.robotCode.slice()
+  );
+  gameState.robots.push(robot);
+  gameState.robotCode = [];
+  updateRobotCodeDisplay();
+}
+
+function updateStats() {
+  document.getElementById('frog-count').textContent = gameState.creatures.filter(c => c.type === 'frog').length;
+  document.getElementById('fish-count').textContent = gameState.creatures.filter(c => c.type === 'fish').length;
+  document.getElementById('mosq-count').textContent = gameState.creatures.filter(c => c.type === 'mosquito').length;
+  document.getElementById('robot-count').textContent = gameState.robots.length;
+}
+
+function gameLoop() {
+  // Clear and paint background
+  ctx.fillStyle = '#e0f6ff';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  
+  if (!gameState.paused) {
+    gameState.gameTime++;
+    
+    // Update creatures
+    gameState.creatures = gameState.creatures.filter(c => c.update());
+    
+    // Update robots
+    gameState.robots = gameState.robots.filter(r => r.update());
+    
+    // Mosquito fish attack nearby creatures
+    gameState.creatures.forEach(mosquito => {
+      if (mosquito.type === 'mosquito') {
+        gameState.creatures.forEach(target => {
+          if (['frog', 'fish', 'egg'].includes(target.type) && mosquito.distance(target) < 20) {
+            target.alive = false;
+          }
+        });
+      }
+    });
+    
+    // Remove dead creatures
+    gameState.creatures = gameState.creatures.filter(c => c.alive !== false);
+  }
+  
+  // Render all creatures
+  gameState.creatures.forEach(c => c.render());
+  
+  // Render all robots
+  gameState.robots.forEach(r => r.render());
+  
+  // Update UI stats
+  updateStats();
+  
+  // Continue loop
+  requestAnimationFrame(gameLoop);
+}
+
+function showModal(id) {
+  document.getElementById(id).classList.add('open');
+}
+
+function closeModal(id) {
+  document.getElementById(id).classList.remove('open');
+}
+
+function togglePause() {
+  gameState.paused = !gameState.paused;
+  document.getElementById('pause-btn').textContent = gameState.paused ? '▶ Resume' : '⏸ Pause';
+}
+
+function resetEcosystem() {
+  initEcosystem();
+  document.getElementById('pause-btn').textContent = '⏸ Pause';
+}
+
+// Initialize and start
+initEcosystem();
+gameLoop();
+</script>
+
+</body>
+</html>
