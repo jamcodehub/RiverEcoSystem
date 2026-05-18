@@ -3,14 +3,29 @@ import './App.css';
 import EcosystemCanvas from './components/EcosystemCanvas';
 import RobotBuilder from './components/RobotBuilder';
 import StatsPanel from './components/StatsPanel';
+import TelemetryPanel from './components/TelemetryPanel';
 
 function App() {
   const [creatures, setCreatures] = useState([]);
   const [robots, setRobots] = useState([]);
   const [isPaused, setIsPaused] = useState(false);
   const [showRobotModal, setShowRobotModal] = useState(false);
+  const [showTelemetry, setShowTelemetry] = useState(false);
   const [gameTime, setGameTime] = useState(0);
   const [selectedRobotCode, setSelectedRobotCode] = useState([]);
+  const [telemetry, setTelemetry] = useState({
+    gameTime: 0,
+    nativeSpeciesKilled: 0,
+    mosquitoesKilledByRobots: 0,
+    frogsHatched: 0,
+    totalRobotsDeployed: 0,
+  });
+  const prevCreaturesRef = useRef({
+    frogs: 0,
+    fish: 0,
+    eggs: 0,
+    mosquito: 0,
+  });
   const gameLoopRef = useRef(null);
 
   // Initialize ecosystem
@@ -18,11 +33,39 @@ function App() {
     resetEcosystem();
   }, []);
 
+  // Track creature deaths and births for telemetry
+  useEffect(() => {
+    const currentCounts = {
+      frogs: creatures.filter(c => c.type === 'frog').length,
+      fish: creatures.filter(c => c.type === 'fish').length,
+      eggs: creatures.filter(c => c.type === 'egg').length,
+      mosquito: creatures.filter(c => c.type === 'mosquito').length,
+    };
+
+    // Check for native species death
+    const nativeDeath = (prevCreaturesRef.current.frogs - currentCounts.frogs) +
+                        (prevCreaturesRef.current.fish - currentCounts.fish);
+    
+    // Check for frog birth (egg -> frog conversion)
+    const frogBirth = Math.max(0, currentCounts.frogs - prevCreaturesRef.current.frogs);
+
+    if (nativeDeath > 0 || frogBirth > 0) {
+      setTelemetry(prev => ({
+        ...prev,
+        nativeSpeciesKilled: prev.nativeSpeciesKilled + nativeDeath,
+        frogsHatched: prev.frogsHatched + frogBirth,
+      }));
+    }
+
+    prevCreaturesRef.current = currentCounts;
+  }, [creatures]);
+
   // Game loop
   useEffect(() => {
     const gameLoop = setInterval(() => {
       if (!isPaused) {
         setGameTime(t => t + 1);
+        setTelemetry(prev => ({ ...prev, gameTime: prev.gameTime + 1 }));
 
         setCreatures(prevCreatures => {
           let updated = prevCreatures
@@ -93,25 +136,66 @@ function App() {
           return [...updated, ...newCreatures];
         });
 
-        // Update robots
+        // Update robots - aggressive hunting behavior
         setRobots(prevRobots => {
-          return prevRobots
+          let mosquitoesKilled = 0;
+
+          const updated = prevRobots
             .map(robot => {
               let updated = { ...robot };
+              const hasSensorCommand = robot.code.some(b => typeof b === 'string' && b.includes('sensor'));
+              const hasSwimCommand = robot.code.some(b => typeof b === 'string' && b.includes('swim'));
+              const hasRotateCommand = robot.code.some(b => typeof b === 'string' && b.includes('rotate'));
 
-              // Check if robot has swim command
-              const hasSwim = robot.code.some(b => typeof b === 'string' && b.includes('swim'));
-              
-              if (hasSwim) {
-                // Make robot swim in current direction
-                const swimSpeed = 2;
-                updated.vx = Math.cos(robot.direction) * swimSpeed;
-                updated.vy = Math.sin(robot.direction) * swimSpeed;
+              // Check for nearby mosquitoes
+              const HUNT_RANGE = 250; // Extended vision
+              const nearbyMosquitoes = creatures.filter(
+                c => c.type === 'mosquito' && distance(updated, c) < HUNT_RANGE
+              );
+
+              if (nearbyMosquitoes.length > 0 && hasSensorCommand) {
+                // Aggressive hunting mode
+                const target = nearbyMosquitoes.reduce((closest, m) =>
+                  distance(updated, m) < distance(updated, closest) ? m : closest
+                );
+
+                const dist = distance(updated, target);
+                const huntSpeed = 0.5 + (1 - Math.min(dist / HUNT_RANGE, 1)) * 3.5; // 0.5-4 speed
                 
-                // Randomly change direction occasionally
+                // Chase target
+                const dx = target.x - updated.x;
+                const dy = target.y - updated.y;
+                const len = Math.sqrt(dx * dx + dy * dy) || 1;
+                updated.vx = (dx / len) * huntSpeed;
+                updated.vy = (dy / len) * huntSpeed;
+                
+                // Update direction for visual feedback
+                updated.direction = Math.atan2(dy, dx);
+                updated.huntingSpeed = huntSpeed; // Track speed for visual ramp-up
+
+                // Kill mosquito if close enough
+                if (dist < 15 && hasRotateCommand) {
+                  setCreatures(prev => {
+                    const filtered = prev.filter(c => c.id !== target.id);
+                    mosquitoesKilled++;
+                    return filtered;
+                  });
+                }
+              } else if (hasSwimCommand) {
+                // Normal swimming when not hunting
+                const swimSpeed = 2;
+                updated.vx = Math.cos(updated.direction || 0) * swimSpeed;
+                updated.vy = Math.sin(updated.direction || 0) * swimSpeed;
+                updated.huntingSpeed = swimSpeed;
+
+                // Randomly change direction
                 if (Math.random() < 0.02) {
                   updated.direction = Math.random() * Math.PI * 2;
                 }
+              } else {
+                // Stationary if no swim command
+                updated.vx = 0;
+                updated.vy = 0;
               }
 
               // Update position
@@ -126,16 +210,6 @@ function App() {
               if (updated.y < 50) updated.y = 50;
               if (updated.y > CANVAS_H - 50) updated.y = CANVAS_H - 50;
 
-              // Check for mosquitoes to trap/kill
-              const mosquitoes = creatures.filter(
-                c => c.type === 'mosquito' && distance(updated, c) < 20
-              );
-
-              if (mosquitoes.length > 0 && robot.code.some(b => typeof b === 'string' && b.includes('rotate'))) {
-                // Remove target mosquito
-                setCreatures(prev => prev.filter(c => c.id !== mosquitoes[0].id));
-              }
-
               return {
                 ...updated,
                 age: updated.age + 1,
@@ -143,6 +217,16 @@ function App() {
               };
             })
             .filter(r => r.alive);
+
+          // Update telemetry
+          if (mosquitoesKilled > 0) {
+            setTelemetry(prev => ({
+              ...prev,
+              mosquitoesKilledByRobots: prev.mosquitoesKilledByRobots + mosquitoesKilled,
+            }));
+          }
+
+          return updated;
         });
       }
     }, 1000 / 60); // 60 FPS
@@ -323,6 +407,7 @@ function App() {
       alive: true,
     };
     setRobots(prev => [...prev, newRobot]);
+    setTelemetry(prev => ({ ...prev, totalRobotsDeployed: prev.totalRobotsDeployed + 1 }));
     setShowRobotModal(false);
     setSelectedRobotCode([]);
   };
@@ -337,27 +422,40 @@ function App() {
 
   return (
     <div className="app">
-      <StatsPanel stats={stats} />
-
-      <div className="main-content">
+      <div className="river-scene">
         <EcosystemCanvas creatures={creatures} robots={robots} />
-
-        <div className="controls">
-          <button onClick={addMosquitoFish} className="btn btn-danger">
-            ➕ Spawn Mosquito Fish
-          </button>
-          <button onClick={() => setShowRobotModal(true)} className="btn btn-primary">
-            🤖 Build Robot
-          </button>
-          <button
-            onClick={() => setIsPaused(!isPaused)}
-            className="btn btn-secondary"
-          >
-            {isPaused ? '▶ Resume' : '⏸ Pause'}
-          </button>
-          <button onClick={resetEcosystem} className="btn btn-secondary">
-            ↻ Reset
-          </button>
+        
+        {/* Overlay controls */}
+        <div className="scene-overlay">
+          <div className="top-stats">
+            <StatsPanel stats={stats} />
+          </div>
+          
+          <div className="bottom-controls">
+            <div className="controls">
+              <button onClick={addMosquitoFish} className="btn btn-danger">
+                ➕ Spawn Mosquito Fish
+              </button>
+              <button onClick={() => setShowRobotModal(true)} className="btn btn-primary">
+                🤖 Build Robot
+              </button>
+              <button
+                onClick={() => setIsPaused(!isPaused)}
+                className="btn btn-secondary"
+              >
+                {isPaused ? '▶ Resume' : '⏸ Pause'}
+              </button>
+              <button onClick={resetEcosystem} className="btn btn-secondary">
+                ↻ Reset
+              </button>
+              <button 
+                onClick={() => setShowTelemetry(true)} 
+                className="btn btn-telemetry"
+              >
+                📊 Telemetry
+              </button>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -367,6 +465,14 @@ function App() {
           onClose={() => setShowRobotModal(false)}
           selectedCode={selectedRobotCode}
           setSelectedCode={setSelectedRobotCode}
+        />
+      )}
+
+      {showTelemetry && (
+        <TelemetryPanel
+          onClose={() => setShowTelemetry(false)}
+          telemetry={telemetry}
+          stats={stats}
         />
       )}
     </div>

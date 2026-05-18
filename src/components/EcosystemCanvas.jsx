@@ -139,29 +139,43 @@ const EcosystemCanvas = ({ creatures, robots }) => {
     robots.forEach(robot => {
       const x = Math.floor(robot.x);
       const y = Math.floor(robot.y);
+      const huntSpeed = robot.huntingSpeed || 0;
+      const maxSpeed = 4;
+      const speedRatio = Math.min(huntSpeed / maxSpeed, 1);
+
+      // Hunting glow indicator
+      if (speedRatio > 0.3) {
+        const glowRadius = 15 + (speedRatio * 20);
+        const glowAlpha = 0.1 + (speedRatio * 0.3);
+        ctx.fillStyle = `rgba(255, ${Math.floor(100 + speedRatio * 155)}, 0, ${glowAlpha})`;
+        ctx.beginPath();
+        ctx.arc(x, y, glowRadius, 0, Math.PI * 2);
+        ctx.fill();
+      }
 
       // Robot body
       ctx.fillStyle = '#f39c12';
       ctx.fillRect(x - 8, y - 8, 16, 16);
 
-      // Sensor
-      ctx.strokeStyle = '#e67e22';
-      ctx.lineWidth = 2;
+      // Speed indicator - color changes with speed
+      const speedColor = speedRatio > 0.7 ? '#ff4444' : speedRatio > 0.3 ? '#ffaa00' : '#f39c12';
+      ctx.strokeStyle = speedColor;
+      ctx.lineWidth = 2 + (speedRatio * 2);
       ctx.strokeRect(x - 6, y - 6, 12, 12);
 
       // Antenna
-      ctx.strokeStyle = '#f39c12';
+      ctx.strokeStyle = speedColor;
       ctx.lineWidth = 2;
       ctx.beginPath();
       ctx.moveTo(x + 8, y - 8);
-      ctx.lineTo(x + 14, y - 16);
+      ctx.lineTo(x + 14, y - (8 + speedRatio * 8));
       ctx.stroke();
 
       // Detection range
-      ctx.strokeStyle = 'rgba(243, 156, 18, 0.2)';
+      ctx.strokeStyle = `rgba(${Math.floor(243 - speedRatio * 100)}, ${Math.floor(156 + speedRatio * 50)}, 18, ${0.2 + speedRatio * 0.2})`;
       ctx.lineWidth = 1;
       ctx.beginPath();
-      ctx.arc(x, y, 150, 0, Math.PI * 2);
+      ctx.arc(x, y, 250, 0, Math.PI * 2);
       ctx.stroke();
     });
 

@@ -19,29 +19,72 @@ body {
   flex-direction: column;
   height: 100vh;
   background: #0f0f1e;
+  overflow: hidden;
+}
+
+/* ============ River Scene (90% of viewport) ============ */
+.river-scene {
+  flex: 1;
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: #0f0f1e;
+  overflow: hidden;
+}
+
+.scene-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 12px;
+  z-index: 100;
+}
+
+.top-stats {
+  pointer-events: auto;
+  background: linear-gradient(135deg, #1a3a52 0%, #2d5f7d 100%);
+  border: 2px solid #00d4ff;
+  border-radius: 8px;
+  padding: 12px 20px;
+  box-shadow: 0 4px 12px rgba(0, 212, 255, 0.1);
+  max-width: 100%;
+}
+
+.bottom-controls {
+  pointer-events: auto;
+  display: flex;
+  justify-content: center;
 }
 
 /* ============ Stats Panel ============ */
 .stats-panel {
-  background: linear-gradient(135deg, #1a3a52 0%, #2d5f7d 100%);
-  padding: 20px 30px;
-  border-bottom: 2px solid #00d4ff;
-  box-shadow: 0 4px 12px rgba(0, 212, 255, 0.1);
+  background: transparent;
+  padding: 0;
+  border: none;
+  box-shadow: none;
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
 }
 
 .stats-panel h1 {
-  font-size: 24px;
-  margin-bottom: 16px;
+  font-size: 18px;
+  margin-bottom: 8px;
   color: #fff;
   font-weight: 600;
+  display: none;
 }
 
 .stats-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 10px;
   min-width: min-content;
 }
 
@@ -114,14 +157,9 @@ body {
 .robot-stat .stat-value { color: #f39c12; }
 .total-stat .stat-value { color: #9b59b6; }
 
-/* ============ Main Content ============ */
+/* ============ Main Content (Removed - now overlay) ============ */
 .main-content {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  padding: 16px;
-  overflow: hidden;
+  display: none;
 }
 
 /* ============ Canvas ============ */
@@ -130,14 +168,14 @@ body {
   display: flex;
   justify-content: center;
   align-items: center;
-  background: #1a1a2e;
-  border-radius: 8px;
-  overflow: auto;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  background: transparent;
+  border-radius: 0;
+  overflow: visible;
+  box-shadow: none;
 }
 
 .ecosystem-canvas {
-  border: 2px solid #00d4ff;
+  border: none;
   image-rendering: pixelated;
   image-rendering: -moz-crisp-edges;
   image-rendering: crisp-edges;
@@ -155,18 +193,23 @@ body {
 /* ============ Controls ============ */
 .controls {
   display: flex;
-  gap: 12px;
+  gap: 10px;
   flex-wrap: wrap;
   justify-content: center;
+  background: rgba(0, 0, 0, 0.4);
+  padding: 12px;
+  border-radius: 8px;
+  border: 2px solid #00d4ff;
+  backdrop-filter: blur(4px);
 }
 
 .btn {
-  padding: 12px 20px;
+  padding: 10px 16px;
   border: 2px solid #00d4ff;
   border-radius: 6px;
   background: #0f3460;
   color: #00d4ff;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.3s;
@@ -188,11 +231,21 @@ body {
   transform: translateY(0);
 }
 
+.btn-telemetry {
+  border-color: #9b59b6;
+  color: #9b59b6;
+}
+
+.btn-telemetry:hover:not(:disabled) {
+  background: rgba(155, 89, 182, 0.2);
+  box-shadow: 0 0 12px rgba(155, 89, 182, 0.4);
+}
+
 @media (hover: none) and (pointer: coarse) {
   .btn {
-    padding: 14px 22px;
+    padding: 12px 18px;
     min-height: 44px;
-    font-size: 16px;
+    font-size: 14px;
   }
 
   .btn:active:not(:disabled) {
@@ -233,7 +286,158 @@ body {
   background: #1a1a2e;
 }
 
-/* ============ Modal ============ */
+/* ============ Telemetry Modal ============ */
+.telemetry-modal {
+  background: #16213e;
+  border: 2px solid #9b59b6;
+  border-radius: 8px;
+  max-width: 90vw;
+  max-height: 85vh;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 12px 48px rgba(155, 89, 182, 0.3);
+  animation: slideUp 0.3s;
+}
+
+.telemetry-content {
+  padding: 24px;
+  flex: 1;
+  overflow-y: auto;
+}
+
+.telemetry-section {
+  margin-bottom: 20px;
+}
+
+.telemetry-section h3 {
+  color: #9b59b6;
+  font-size: 14px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 12px;
+}
+
+.big-stat {
+  font-size: 48px;
+  font-weight: bold;
+  color: #00d4ff;
+  text-align: center;
+  padding: 20px;
+  background: rgba(0, 212, 255, 0.1);
+  border-radius: 8px;
+}
+
+.telemetry-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 16px;
+}
+
+.telemetry-card {
+  background: #0f3460;
+  border: 1px solid #333;
+  border-radius: 8px;
+  padding: 16px;
+  border-left: 4px solid #9b59b6;
+}
+
+.telemetry-card h4 {
+  color: #9b59b6;
+  font-size: 14px;
+  margin-bottom: 12px;
+  font-weight: 600;
+}
+
+.stat-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 0;
+  font-size: 13px;
+  color: #aaa;
+}
+
+.stat-row span {
+  display: inline-block;
+}
+
+.stat-row .value {
+  color: #00d4ff;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.stat-row .value.danger {
+  color: #e74c3c;
+}
+
+.stat-row .value.success {
+  color: #2ecc71;
+}
+
+.stat-row .value.warning {
+  color: #f39c12;
+}
+
+.stat-row .percentage {
+  color: #888;
+  font-size: 12px;
+  margin-left: 8px;
+}
+
+.stat-row.bold {
+  font-weight: 600;
+  padding-top: 8px;
+  margin-top: 8px;
+  border-top: 1px solid #333;
+  color: #00d4ff;
+}
+
+.stat-row.bold .value {
+  color: #00d4ff;
+}
+
+.telemetry-card hr {
+  border: none;
+  border-top: 1px solid #333;
+  margin: 8px 0;
+}
+
+.health-bar {
+  width: 100%;
+  height: 20px;
+  background: #0a1929;
+  border-radius: 10px;
+  overflow: hidden;
+  margin-bottom: 12px;
+  border: 1px solid #333;
+}
+
+.health-fill {
+  height: 100%;
+  transition: width 0.3s ease;
+  border-radius: 10px;
+}
+
+@media (max-width: 768px) {
+  .telemetry-modal {
+    max-width: 95vw;
+    max-height: 90vh;
+  }
+
+  .telemetry-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .telemetry-content {
+    padding: 16px;
+  }
+
+  .big-stat {
+    font-size: 36px;
+  }
+}
 .modal-overlay {
   position: fixed;
   top: 0;
@@ -842,6 +1046,26 @@ body {
 
   .stats-grid {
     grid-template-columns: repeat(2, 1fr);
+  }
+
+  .scene-overlay {
+    padding: 6px;
+  }
+
+  .top-stats {
+    padding: 6px 10px;
+    border-radius: 6px;
+  }
+
+  .controls {
+    gap: 6px;
+    padding: 6px;
+  }
+
+  .btn {
+    padding: 8px 10px;
+    font-size: 11px;
+    min-height: 36px;
   }
 
   .modal-header h2 {
