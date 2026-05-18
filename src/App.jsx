@@ -127,34 +127,66 @@ function App() {
     const updated = { ...creature };
     updated.age = (updated.age || 0) + 1;
 
-    // Check for nearby mosquito fish
-    const nearbyMosquito = allCreatures.find(
-      c => c.type === 'mosquito' && distance(creature, c) < 120
-    );
-
     let currentSpeed = 1.5;
     let dirX = updated.vx || (Math.random() - 0.5) * 1.5;
     let dirY = updated.vy || (Math.random() - 0.5) * 1.5;
 
-    if (nearbyMosquito && ['frog', 'fish', 'egg'].includes(creature.type)) {
-      // Flee behavior - speed increases with proximity
-      const dist = distance(creature, nearbyMosquito);
-      const dangerLevel = Math.max(0, 1 - dist / 120);
-      currentSpeed = 1.5 + dangerLevel * 3; // Ramp up to 4.5
+    if (creature.type === 'mosquito') {
+      // Mosquito fish hunting behavior - pursue nearby prey
+      const prey = allCreatures.filter(c => 
+        ['frog', 'fish', 'egg'].includes(c.type) && distance(creature, c) < 150
+      );
 
-      // Turn away from mosquito
-      const dx = creature.x - nearbyMosquito.x;
-      const dy = creature.y - nearbyMosquito.y;
-      const len = Math.sqrt(dx * dx + dy * dy) || 1;
-      dirX = (dx / len) * currentSpeed;
-      dirY = (dy / len) * currentSpeed;
-    } else {
-      // Normal wandering
-      if (Math.random() < 0.02) {
-        dirX = (Math.random() - 0.5) * 2;
-        dirY = (Math.random() - 0.5) * 2;
+      if (prey.length > 0) {
+        // Hunt nearest target
+        const target = prey.reduce((closest, p) => 
+          distance(creature, p) < distance(creature, closest) ? p : closest
+        );
+        
+        const dist = distance(creature, target);
+        // Increase speed based on proximity - faster as they close in
+        currentSpeed = 2 + (1 - Math.min(dist / 150, 1)) * 2.5; // 2-4.5 speed
+        
+        // Move towards target
+        const dx = target.x - creature.x;
+        const dy = target.y - creature.y;
+        const len = Math.sqrt(dx * dx + dy * dy) || 1;
+        dirX = (dx / len) * currentSpeed;
+        dirY = (dy / len) * currentSpeed;
+      } else {
+        // Wandering behavior when no prey nearby
+        if (Math.random() < 0.02) {
+          dirX = (Math.random() - 0.5) * 2;
+          dirY = (Math.random() - 0.5) * 2;
+        }
+        currentSpeed = 1.5;
       }
-      currentSpeed = 1.5;
+    } else {
+      // Check for nearby mosquito fish (for native species)
+      const nearbyMosquito = allCreatures.find(
+        c => c.type === 'mosquito' && distance(creature, c) < 120
+      );
+
+      if (nearbyMosquito) {
+        // Flee behavior - speed increases with proximity
+        const dist = distance(creature, nearbyMosquito);
+        const dangerLevel = Math.max(0, 1 - dist / 120);
+        currentSpeed = 1.5 + dangerLevel * 3; // Ramp up to 4.5
+
+        // Turn away from mosquito
+        const dx = creature.x - nearbyMosquito.x;
+        const dy = creature.y - nearbyMosquito.y;
+        const len = Math.sqrt(dx * dx + dy * dy) || 1;
+        dirX = (dx / len) * currentSpeed;
+        dirY = (dy / len) * currentSpeed;
+      } else {
+        // Normal wandering
+        if (Math.random() < 0.02) {
+          dirX = (Math.random() - 0.5) * 2;
+          dirY = (Math.random() - 0.5) * 2;
+        }
+        currentSpeed = 1.5;
+      }
     }
 
     updated.vx = dirX;

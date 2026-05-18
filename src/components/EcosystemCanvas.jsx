@@ -29,16 +29,14 @@ const EcosystemCanvas = ({ creatures, robots }) => {
     ctx.fillStyle = '#3d6b2f';
     ctx.fillRect(0, height - 50, width, 50); // Bottom bank
 
-    // Draw water details/ripples
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+    // Draw solid water lines
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
     ctx.lineWidth = 1;
     for (let i = 0; i < 5; i++) {
       const yOffset = 100 + i * 60;
       ctx.beginPath();
       ctx.moveTo(0, yOffset);
-      for (let x = 0; x < width; x += 20) {
-        ctx.lineTo(x, yOffset + Math.sin(x * 0.01) * 3);
-      }
+      ctx.lineTo(width, yOffset);
       ctx.stroke();
     }
 
