@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useMemo, useState } from 'react';
 
 const EcosystemCanvas = ({ creatures, robots }) => {
   const canvasRef = useRef(null);
-  const [canvasSize, setCanvasSize] = useState({ width: 1000, height: 500 });
+  const [canvasSize, setCanvasSize] = useState({ width: window.innerWidth, height: window.innerHeight });
   
   // Generate static reeds once
   const staticReeds = useMemo(() => {
@@ -22,14 +22,9 @@ const EcosystemCanvas = ({ creatures, robots }) => {
     const handleResize = () => {
       const canvas = canvasRef.current;
       if (!canvas) return;
-      
-      // Get actual viewport size
-      const width = window.innerWidth;
-      const height = window.innerHeight;
-      
       setCanvasSize({
-        width: Math.max(800, width),
-        height: Math.max(400, height),
+        width: window.innerWidth,
+        height: window.innerHeight,
       });
     };
 

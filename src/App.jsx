@@ -77,12 +77,12 @@ function App() {
             .map(creature => updateCreature(creature, prevCreatures))
             .filter(c => c && c.alive && c.age < c.lifespan);
 
-          // Mosquito fish attack - ONLY target tadpoles
+          // Mosquito fish attack - ONLY target tadpoles and babyFish
           const eaten = new Set();
           updated.forEach(mosquito => {
             if (mosquito.type === 'mosquito') {
               updated.forEach(target => {
-                if (target.type === 'tadpole' && distance(mosquito, target) < 15) {
+                if ((target.type === 'tadpole' || target.type === 'babyFish') && distance(mosquito, target) < 15) {
                   eaten.add(target.id);
                 }
               });
@@ -114,7 +114,7 @@ function App() {
                 ...creature,
                 type: 'fish',
                 id: Math.random(),
-                lifespan: 5000,
+                lifespan: 36000,
               });
               return null;
             }
@@ -124,7 +124,7 @@ function App() {
                 ...creature,
                 type: 'mosquito',
                 id: Math.random(),
-                lifespan: 8000,
+                lifespan: 36000,
               });
               return null;
             }
@@ -148,7 +148,7 @@ function App() {
                       vy: (Math.random() - 0.5) * 1,
                       age: 0,
                       alive: true,
-                      lifespan: 7200,
+                      lifespan: 36000,
                       breedingCooldown: 0,
                     });
                     // Mark both parents with cooldown (update in modified array)
@@ -177,7 +177,7 @@ function App() {
                       vy: (Math.random() - 0.5) * 1,
                       age: 0,
                       alive: true,
-                      lifespan: 7200,
+                      lifespan: 36000,
                       breedingCooldown: 0,
                     });
                     // Mark both parents with cooldown (update in modified array)
@@ -206,7 +206,7 @@ function App() {
                       vy: (Math.random() - 0.5) * 1,
                       age: 0,
                       alive: true,
-                      lifespan: 7200,
+                      lifespan: 36000,
                       breedingCooldown: 0,
                     });
                     // Mark both parents with cooldown (update in modified array)
@@ -288,8 +288,8 @@ function App() {
               updated.y += updated.vy || 0;
 
               // Boundary wrapping
-              const CANVAS_W = 1000;
-              const CANVAS_H = 500;
+              const CANVAS_W = window.innerWidth;
+              const CANVAS_H = window.innerHeight;
               if (updated.x < 0) updated.x += CANVAS_W;
               if (updated.x > CANVAS_W) updated.x -= CANVAS_W;
               if (updated.y < 50) updated.y = 50;
@@ -330,7 +330,7 @@ function App() {
     if (creature.type === 'mosquito') {
       // Mosquito fish hunting behavior - pursue nearby prey
       const prey = allCreatures.filter(c => 
-        c.type === 'tadpole' && distance(creature, c) < 150
+        (c.type === 'tadpole' || c.type === 'babyFish') && distance(creature, c) < 150
       );
 
       if (prey.length > 0) {
@@ -399,13 +399,13 @@ function App() {
     updated.x = updated.x + dirX;
     updated.y = updated.y + dirY;
 
-    // Boundaries with wrapping
-    const CANVAS_W = 1000;
-    const CANVAS_H = 500;
-    if (updated.x < 0) updated.x += CANVAS_W;
-    if (updated.x > CANVAS_W) updated.x -= CANVAS_W;
-    if (updated.y < 50) updated.y = 50;
-    if (updated.y > CANVAS_H - 50) updated.y = CANVAS_H - 50;
+    // Boundaries — wrap horizontally, clamp vertically to river banks
+    const W = window.innerWidth;
+    const H = window.innerHeight;
+    if (updated.x < 0) updated.x += W;
+    if (updated.x > W) updated.x -= W;
+    if (updated.y < 55) updated.y = 55;
+    if (updated.y > H - 55) updated.y = H - 55;
 
     updated.alive = true;
     return updated;
@@ -418,19 +418,23 @@ function App() {
   };
 
   const resetEcosystem = () => {
+    const W = window.innerWidth;
+    const H = window.innerHeight;
+    const riverTop = 60;
+    const riverBottom = H - 60;
     const newCreatures = [];
     // Add frogs (20)
     for (let i = 0; i < 20; i++) {
       newCreatures.push({
         id: Math.random(),
         type: 'frog',
-        x: Math.random() * 800 + 100,
-        y: Math.random() * 300 + 100,
+        x: Math.random() * (W - 100) + 50,
+        y: riverTop + Math.random() * (riverBottom - riverTop),
         vx: (Math.random() - 0.5) * 1.5,
         vy: (Math.random() - 0.5) * 1.5,
         age: 0,
         alive: true,
-        lifespan: 5000,
+        lifespan: 36000,
         breedingCooldown: 0,
       });
     }
@@ -439,43 +443,43 @@ function App() {
       newCreatures.push({
         id: Math.random(),
         type: 'fish',
-        x: Math.random() * 800 + 100,
-        y: Math.random() * 300 + 100,
+        x: Math.random() * (W - 100) + 50,
+        y: riverTop + Math.random() * (riverBottom - riverTop),
         vx: (Math.random() - 0.5) * 1.5,
         vy: (Math.random() - 0.5) * 1.5,
         age: 0,
         alive: true,
-        lifespan: 5000,
+        lifespan: 36000,
         breedingCooldown: 0,
       });
     }
-    // Add tadpoles (10) - for mosquito fish to hunt
+    // Add tadpoles (10)
     for (let i = 0; i < 10; i++) {
       newCreatures.push({
         id: Math.random(),
         type: 'tadpole',
-        x: Math.random() * 800 + 100,
-        y: Math.random() * 300 + 100,
+        x: Math.random() * (W - 100) + 50,
+        y: riverTop + Math.random() * (riverBottom - riverTop),
         vx: (Math.random() - 0.5) * 1.5,
         vy: (Math.random() - 0.5) * 1.5,
         age: 0,
         alive: true,
-        lifespan: 7200,
+        lifespan: 36000,
         breedingCooldown: 0,
       });
     }
-    // Add mosquito fish (6) - they breed now, longer lifespan
+    // Add mosquito fish (6)
     for (let i = 0; i < 6; i++) {
       newCreatures.push({
         id: Math.random(),
         type: 'mosquito',
-        x: Math.random() * 800 + 100,
-        y: Math.random() * 300 + 100,
+        x: Math.random() * (W - 100) + 50,
+        y: riverTop + Math.random() * (riverBottom - riverTop),
         vx: (Math.random() - 0.5) * 1.5,
         vy: (Math.random() - 0.5) * 1.5,
         age: 0,
         alive: true,
-        lifespan: 8000,
+        lifespan: 36000,
         breedingCooldown: 0,
       });
     }
