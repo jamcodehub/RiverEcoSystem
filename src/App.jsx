@@ -82,7 +82,7 @@ function App() {
           updated.forEach(mosquito => {
             if (mosquito.type === 'mosquito') {
               updated.forEach(target => {
-                if (target.type === 'tadpole' && distance(mosquito, target) < 15) {
+                if ((target.type === 'tadpole' || target.type === 'babyFish') && distance(mosquito, target) < 15) {
                   eaten.add(target.id);
                 }
               });
@@ -100,7 +100,7 @@ function App() {
           // Tadpole hatching (tadpole -> frog) - 1 minute maturation
           const newCreatures = [];
           modified = modified.map(creature => {
-            if (creature.type === 'tadpole' && creature.age > 1800) {
+            if (creature.type === 'tadpole' && creature.age > 3600) {
               newCreatures.push({
                 ...creature,
                 type: 'frog',
@@ -109,36 +109,36 @@ function App() {
               return null;
             }
             // Baby fish maturation (babyFish -> fish) - 1 minute maturation
-            if (creature.type === 'babyFish' && creature.age > 1800) {
+            if (creature.type === 'babyFish' && creature.age > 3600) {
               newCreatures.push({
                 ...creature,
                 type: 'fish',
                 id: Math.random(),
-                lifespan: 36000,
+                lifespan: 5000,
               });
               return null;
             }
             // Baby mosquito maturation (babyMosquito -> mosquito) - 1 minute maturation
-            if (creature.type === 'babyMosquito' && creature.age > 1800) {
+            if (creature.type === 'babyMosquito' && creature.age > 3600) {
               newCreatures.push({
                 ...creature,
                 type: 'mosquito',
                 id: Math.random(),
-                lifespan: 36000,
+                lifespan: 8000,
               });
               return null;
             }
             return creature;
           }).filter(Boolean);
 
-          // Breeding system - Fish breed to make baby fish (40% chance)
+          // Breeding system - Fish breed to make baby fish (20% chance)
           const fishCount = modified.filter(c => c.type === 'fish').length;
-          if (Math.random() < 0.008 && fishCount > 1) {
+          if (Math.random() < 0.002 && fishCount > 1) {
             const fishes = modified.filter(c => c.type === 'fish' && (c.breedingCooldown || 0) <= 0);
             for (let i = 0; i < fishes.length; i++) {
               for (let j = i + 1; j < fishes.length; j++) {
-                if (distance(fishes[i], fishes[j]) < 100) {
-                  if (Math.random() < 0.4) {
+                if (distance(fishes[i], fishes[j]) < 50) {
+                  if (Math.random() < 0.2) {
                     newCreatures.push({
                       id: Math.random(),
                       type: 'babyFish',
@@ -148,26 +148,26 @@ function App() {
                       vy: (Math.random() - 0.5) * 1,
                       age: 0,
                       alive: true,
-                      lifespan: 36000,
+                      lifespan: 7200,
                       breedingCooldown: 0,
                     });
                     // Mark both parents with cooldown (update in modified array)
-                    fishes[i] = { ...fishes[i], breedingCooldown: 1800 };
-                    fishes[j] = { ...fishes[j], breedingCooldown: 1800 };
+                    fishes[i] = { ...fishes[i], breedingCooldown: 3600 };
+                    fishes[j] = { ...fishes[j], breedingCooldown: 3600 };
                   }
                 }
               }
             }
           }
 
-          // Breeding system - Frogs breed to make tadpoles (40% chance)
+          // Breeding system - Frogs breed to make tadpoles (20% chance)
           const frogCount = modified.filter(c => c.type === 'frog').length;
-          if (Math.random() < 0.008 && frogCount > 1) {
+          if (Math.random() < 0.002 && frogCount > 1) {
             const frogs = modified.filter(c => c.type === 'frog' && (c.breedingCooldown || 0) <= 0);
             for (let i = 0; i < frogs.length; i++) {
               for (let j = i + 1; j < frogs.length; j++) {
-                if (distance(frogs[i], frogs[j]) < 100) {
-                  if (Math.random() < 0.4) {
+                if (distance(frogs[i], frogs[j]) < 50) {
+                  if (Math.random() < 0.2) {
                     newCreatures.push({
                       id: Math.random(),
                       type: 'tadpole',
@@ -177,26 +177,26 @@ function App() {
                       vy: (Math.random() - 0.5) * 1,
                       age: 0,
                       alive: true,
-                      lifespan: 36000,
+                      lifespan: 7200,
                       breedingCooldown: 0,
                     });
                     // Mark both parents with cooldown (update in modified array)
-                    frogs[i] = { ...frogs[i], breedingCooldown: 1800 };
-                    frogs[j] = { ...frogs[j], breedingCooldown: 1800 };
+                    frogs[i] = { ...frogs[i], breedingCooldown: 3600 };
+                    frogs[j] = { ...frogs[j], breedingCooldown: 3600 };
                   }
                 }
               }
             }
           }
 
-          // Breeding system - Mosquito fish breed to make baby mosquitoes (65% chance)
+          // Breeding system - Mosquito fish breed to make baby mosquitoes (20% chance)
           const mosquitoCount = modified.filter(c => c.type === 'mosquito').length;
-          if (Math.random() < 0.008 && mosquitoCount > 1) {
+          if (Math.random() < 0.002 && mosquitoCount > 1) {
             const mosquitoes = modified.filter(c => c.type === 'mosquito' && (c.breedingCooldown || 0) <= 0);
             for (let i = 0; i < mosquitoes.length; i++) {
               for (let j = i + 1; j < mosquitoes.length; j++) {
-                if (distance(mosquitoes[i], mosquitoes[j]) < 100) {
-                  if (Math.random() < 0.65) {
+                if (distance(mosquitoes[i], mosquitoes[j]) < 50) {
+                  if (Math.random() < 0.2) {
                     newCreatures.push({
                       id: Math.random(),
                       type: 'babyMosquito',
@@ -206,12 +206,12 @@ function App() {
                       vy: (Math.random() - 0.5) * 1,
                       age: 0,
                       alive: true,
-                      lifespan: 36000,
+                      lifespan: 7200,
                       breedingCooldown: 0,
                     });
                     // Mark both parents with cooldown (update in modified array)
-                    mosquitoes[i] = { ...mosquitoes[i], breedingCooldown: 1800 };
-                    mosquitoes[j] = { ...mosquitoes[j], breedingCooldown: 1800 };
+                    mosquitoes[i] = { ...mosquitoes[i], breedingCooldown: 3600 };
+                    mosquitoes[j] = { ...mosquitoes[j], breedingCooldown: 3600 };
                   }
                 }
               }
@@ -330,7 +330,7 @@ function App() {
     if (creature.type === 'mosquito') {
       // Mosquito fish hunting behavior - pursue nearby prey
       const prey = allCreatures.filter(c => 
-        c.type === 'tadpole' && distance(creature, c) < 150
+        (c.type === 'tadpole' || c.type === 'babyFish') && distance(creature, c) < 150
       );
 
       if (prey.length > 0) {
@@ -430,7 +430,7 @@ function App() {
         vy: (Math.random() - 0.5) * 1.5,
         age: 0,
         alive: true,
-        lifespan: 36000,
+        lifespan: 5000,
         breedingCooldown: 0,
       });
     }
@@ -445,7 +445,7 @@ function App() {
         vy: (Math.random() - 0.5) * 1.5,
         age: 0,
         alive: true,
-        lifespan: 36000,
+        lifespan: 5000,
         breedingCooldown: 0,
       });
     }
@@ -460,7 +460,7 @@ function App() {
         vy: (Math.random() - 0.5) * 1.5,
         age: 0,
         alive: true,
-        lifespan: 36000,
+        lifespan: 7200,
         breedingCooldown: 0,
       });
     }
@@ -475,7 +475,7 @@ function App() {
         vy: (Math.random() - 0.5) * 1.5,
         age: 0,
         alive: true,
-        lifespan: 36000,
+        lifespan: 8000,
         breedingCooldown: 0,
       });
     }
