@@ -77,12 +77,12 @@ function App() {
             .map(creature => updateCreature(creature, prevCreatures))
             .filter(c => c && c.alive && c.age < c.lifespan);
 
-          // Mosquito fish attack - ONLY target tadpoles and babyFish
+          // Mosquito fish attack - ONLY target tadpoles
           const eaten = new Set();
           updated.forEach(mosquito => {
             if (mosquito.type === 'mosquito') {
               updated.forEach(target => {
-                if ((target.type === 'tadpole' || target.type === 'babyFish') && distance(mosquito, target) < 15) {
+                if (target.type === 'tadpole' && distance(mosquito, target) < 15) {
                   eaten.add(target.id);
                 }
               });
@@ -100,7 +100,7 @@ function App() {
           // Tadpole hatching (tadpole -> frog) - 1 minute maturation
           const newCreatures = [];
           modified = modified.map(creature => {
-            if (creature.type === 'tadpole' && creature.age > 3600) {
+            if (creature.type === 'tadpole' && creature.age > 1800) {
               newCreatures.push({
                 ...creature,
                 type: 'frog',
@@ -109,7 +109,7 @@ function App() {
               return null;
             }
             // Baby fish maturation (babyFish -> fish) - 1 minute maturation
-            if (creature.type === 'babyFish' && creature.age > 3600) {
+            if (creature.type === 'babyFish' && creature.age > 1800) {
               newCreatures.push({
                 ...creature,
                 type: 'fish',
@@ -119,7 +119,7 @@ function App() {
               return null;
             }
             // Baby mosquito maturation (babyMosquito -> mosquito) - 1 minute maturation
-            if (creature.type === 'babyMosquito' && creature.age > 3600) {
+            if (creature.type === 'babyMosquito' && creature.age > 1800) {
               newCreatures.push({
                 ...creature,
                 type: 'mosquito',
@@ -131,14 +131,14 @@ function App() {
             return creature;
           }).filter(Boolean);
 
-          // Breeding system - Fish breed to make baby fish (20% chance)
+          // Breeding system - Fish breed to make baby fish (40% chance)
           const fishCount = modified.filter(c => c.type === 'fish').length;
-          if (Math.random() < 0.002 && fishCount > 1) {
+          if (Math.random() < 0.008 && fishCount > 1) {
             const fishes = modified.filter(c => c.type === 'fish' && (c.breedingCooldown || 0) <= 0);
             for (let i = 0; i < fishes.length; i++) {
               for (let j = i + 1; j < fishes.length; j++) {
-                if (distance(fishes[i], fishes[j]) < 50) {
-                  if (Math.random() < 0.2) {
+                if (distance(fishes[i], fishes[j]) < 100) {
+                  if (Math.random() < 0.4) {
                     newCreatures.push({
                       id: Math.random(),
                       type: 'babyFish',
@@ -152,22 +152,22 @@ function App() {
                       breedingCooldown: 0,
                     });
                     // Mark both parents with cooldown (update in modified array)
-                    fishes[i] = { ...fishes[i], breedingCooldown: 3600 };
-                    fishes[j] = { ...fishes[j], breedingCooldown: 3600 };
+                    fishes[i] = { ...fishes[i], breedingCooldown: 1800 };
+                    fishes[j] = { ...fishes[j], breedingCooldown: 1800 };
                   }
                 }
               }
             }
           }
 
-          // Breeding system - Frogs breed to make tadpoles (20% chance)
+          // Breeding system - Frogs breed to make tadpoles (40% chance)
           const frogCount = modified.filter(c => c.type === 'frog').length;
-          if (Math.random() < 0.002 && frogCount > 1) {
+          if (Math.random() < 0.008 && frogCount > 1) {
             const frogs = modified.filter(c => c.type === 'frog' && (c.breedingCooldown || 0) <= 0);
             for (let i = 0; i < frogs.length; i++) {
               for (let j = i + 1; j < frogs.length; j++) {
-                if (distance(frogs[i], frogs[j]) < 50) {
-                  if (Math.random() < 0.2) {
+                if (distance(frogs[i], frogs[j]) < 100) {
+                  if (Math.random() < 0.4) {
                     newCreatures.push({
                       id: Math.random(),
                       type: 'tadpole',
@@ -181,22 +181,22 @@ function App() {
                       breedingCooldown: 0,
                     });
                     // Mark both parents with cooldown (update in modified array)
-                    frogs[i] = { ...frogs[i], breedingCooldown: 3600 };
-                    frogs[j] = { ...frogs[j], breedingCooldown: 3600 };
+                    frogs[i] = { ...frogs[i], breedingCooldown: 1800 };
+                    frogs[j] = { ...frogs[j], breedingCooldown: 1800 };
                   }
                 }
               }
             }
           }
 
-          // Breeding system - Mosquito fish breed to make baby mosquitoes (20% chance)
+          // Breeding system - Mosquito fish breed to make baby mosquitoes (65% chance)
           const mosquitoCount = modified.filter(c => c.type === 'mosquito').length;
-          if (Math.random() < 0.002 && mosquitoCount > 1) {
+          if (Math.random() < 0.008 && mosquitoCount > 1) {
             const mosquitoes = modified.filter(c => c.type === 'mosquito' && (c.breedingCooldown || 0) <= 0);
             for (let i = 0; i < mosquitoes.length; i++) {
               for (let j = i + 1; j < mosquitoes.length; j++) {
-                if (distance(mosquitoes[i], mosquitoes[j]) < 50) {
-                  if (Math.random() < 0.2) {
+                if (distance(mosquitoes[i], mosquitoes[j]) < 100) {
+                  if (Math.random() < 0.65) {
                     newCreatures.push({
                       id: Math.random(),
                       type: 'babyMosquito',
@@ -210,8 +210,8 @@ function App() {
                       breedingCooldown: 0,
                     });
                     // Mark both parents with cooldown (update in modified array)
-                    mosquitoes[i] = { ...mosquitoes[i], breedingCooldown: 3600 };
-                    mosquitoes[j] = { ...mosquitoes[j], breedingCooldown: 3600 };
+                    mosquitoes[i] = { ...mosquitoes[i], breedingCooldown: 1800 };
+                    mosquitoes[j] = { ...mosquitoes[j], breedingCooldown: 1800 };
                   }
                 }
               }
@@ -288,8 +288,8 @@ function App() {
               updated.y += updated.vy || 0;
 
               // Boundary wrapping
-              const CANVAS_W = window.innerWidth;
-              const CANVAS_H = window.innerHeight;
+              const CANVAS_W = 1000;
+              const CANVAS_H = 500;
               if (updated.x < 0) updated.x += CANVAS_W;
               if (updated.x > CANVAS_W) updated.x -= CANVAS_W;
               if (updated.y < 50) updated.y = 50;
@@ -330,7 +330,7 @@ function App() {
     if (creature.type === 'mosquito') {
       // Mosquito fish hunting behavior - pursue nearby prey
       const prey = allCreatures.filter(c => 
-        (c.type === 'tadpole' || c.type === 'babyFish') && distance(creature, c) < 150
+        c.type === 'tadpole' && distance(creature, c) < 150
       );
 
       if (prey.length > 0) {
@@ -399,13 +399,13 @@ function App() {
     updated.x = updated.x + dirX;
     updated.y = updated.y + dirY;
 
-    // Boundaries — wrap horizontally, clamp vertically to river banks
-    const W = window.innerWidth;
-    const H = window.innerHeight;
-    if (updated.x < 0) updated.x += W;
-    if (updated.x > W) updated.x -= W;
-    if (updated.y < 55) updated.y = 55;
-    if (updated.y > H - 55) updated.y = H - 55;
+    // Boundaries with wrapping
+    const CANVAS_W = 1000;
+    const CANVAS_H = 500;
+    if (updated.x < 0) updated.x += CANVAS_W;
+    if (updated.x > CANVAS_W) updated.x -= CANVAS_W;
+    if (updated.y < 50) updated.y = 50;
+    if (updated.y > CANVAS_H - 50) updated.y = CANVAS_H - 50;
 
     updated.alive = true;
     return updated;
@@ -418,18 +418,14 @@ function App() {
   };
 
   const resetEcosystem = () => {
-    const W = window.innerWidth;
-    const H = window.innerHeight;
-    const riverTop = 60;
-    const riverBottom = H - 60;
     const newCreatures = [];
     // Add frogs (20)
     for (let i = 0; i < 20; i++) {
       newCreatures.push({
         id: Math.random(),
         type: 'frog',
-        x: Math.random() * (W - 100) + 50,
-        y: riverTop + Math.random() * (riverBottom - riverTop),
+        x: Math.random() * 800 + 100,
+        y: Math.random() * 300 + 100,
         vx: (Math.random() - 0.5) * 1.5,
         vy: (Math.random() - 0.5) * 1.5,
         age: 0,
@@ -443,8 +439,8 @@ function App() {
       newCreatures.push({
         id: Math.random(),
         type: 'fish',
-        x: Math.random() * (W - 100) + 50,
-        y: riverTop + Math.random() * (riverBottom - riverTop),
+        x: Math.random() * 800 + 100,
+        y: Math.random() * 300 + 100,
         vx: (Math.random() - 0.5) * 1.5,
         vy: (Math.random() - 0.5) * 1.5,
         age: 0,
@@ -453,13 +449,13 @@ function App() {
         breedingCooldown: 0,
       });
     }
-    // Add tadpoles (10)
+    // Add tadpoles (10) - for mosquito fish to hunt
     for (let i = 0; i < 10; i++) {
       newCreatures.push({
         id: Math.random(),
         type: 'tadpole',
-        x: Math.random() * (W - 100) + 50,
-        y: riverTop + Math.random() * (riverBottom - riverTop),
+        x: Math.random() * 800 + 100,
+        y: Math.random() * 300 + 100,
         vx: (Math.random() - 0.5) * 1.5,
         vy: (Math.random() - 0.5) * 1.5,
         age: 0,
@@ -468,13 +464,13 @@ function App() {
         breedingCooldown: 0,
       });
     }
-    // Add mosquito fish (6)
+    // Add mosquito fish (6) - they breed now, longer lifespan
     for (let i = 0; i < 6; i++) {
       newCreatures.push({
         id: Math.random(),
         type: 'mosquito',
-        x: Math.random() * (W - 100) + 50,
-        y: riverTop + Math.random() * (riverBottom - riverTop),
+        x: Math.random() * 800 + 100,
+        y: Math.random() * 300 + 100,
         vx: (Math.random() - 0.5) * 1.5,
         vy: (Math.random() - 0.5) * 1.5,
         age: 0,
