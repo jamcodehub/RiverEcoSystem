@@ -1,24 +1,50 @@
-import React, { useEffect, useRef, useMemo } from 'react';
+import React, { useEffect, useRef, useMemo, useState } from 'react';
 
 const EcosystemCanvas = ({ creatures, robots }) => {
   const canvasRef = useRef(null);
+  const [canvasSize, setCanvasSize] = useState({ width: 1000, height: 500 });
   
   // Generate static reeds once
   const staticReeds = useMemo(() => {
     const reeds = [];
-    for (let i = 0; i < 10; i++) {
+    for (let i = 0; i < 20; i++) {
       reeds.push({
-        x: (i * 100) + 20, // Static positioning
+        x: (i * (canvasSize.width / 20)) + 20,
         topY: 10,
-        bottomY: null, // Will be calculated based on canvas height
+        bottomY: null,
       });
     }
     return reeds;
+  }, [canvasSize.width]);
+
+  // Handle canvas resize
+  useEffect(() => {
+    const handleResize = () => {
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+      
+      // Get actual viewport size
+      const width = window.innerWidth;
+      const height = window.innerHeight;
+      
+      setCanvasSize({
+        width: Math.max(800, width),
+        height: Math.max(400, height),
+      });
+    };
+
+    // Initial sizing
+    setTimeout(handleResize, 100);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
   }, []);
 
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
+
+    canvas.width = canvasSize.width;
+    canvas.height = canvasSize.height;
 
     const ctx = canvas.getContext('2d');
     const width = canvas.width;
@@ -62,13 +88,14 @@ const EcosystemCanvas = ({ creatures, robots }) => {
       ctx.fillRect(reed.x, height - 40, 3, 40);
     });
 
-    // Draw rocks
+    // Draw rocks - responsive positioning
     ctx.fillStyle = '#8b8680';
+    const scale = canvasSize.width / 1000;
     const rockPositions = [
-      { x: 150, y: 280, r: 12 },
-      { x: 450, y: 350, r: 10 },
-      { x: 800, y: 200, r: 14 },
-      { x: 950, y: 320, r: 11 },
+      { x: 150 * scale, y: 280 * scale, r: 12 },
+      { x: 450 * scale, y: 350 * scale, r: 10 },
+      { x: 800 * scale, y: 200 * scale, r: 14 },
+      { x: 950 * scale, y: 320 * scale, r: 11 },
     ];
     rockPositions.forEach(rock => {
       ctx.beginPath();
@@ -129,6 +156,17 @@ const EcosystemCanvas = ({ creatures, robots }) => {
         ctx.lineTo(x + 8, y + (Math.sin(creature.age * 0.1) * 2));
         ctx.lineWidth = 1.5;
         ctx.stroke();
+      } else if (creature.type === 'babyMosquito') {
+        // Baby mosquito fish - smaller, less aggressive coloring
+        ctx.fillStyle = '#ec7063';
+        ctx.beginPath();
+        ctx.ellipse(x, y, 3, 2, creature.vx > 0 ? 0 : Math.PI, 0, Math.PI * 2);
+        ctx.fill();
+        // Small eye
+        ctx.fillStyle = '#000';
+        ctx.beginPath();
+        ctx.arc(x + (creature.vx > 0 ? 2 : -2), y - 0.5, 0.8, 0, Math.PI * 2);
+        ctx.fill();
       } else if (creature.type === 'mosquito') {
         // Mosquito fish
         ctx.fillStyle = '#e74c3c';
@@ -205,14 +243,12 @@ const EcosystemCanvas = ({ creatures, robots }) => {
     ctx.fillStyle = '#333';
     ctx.font = '12px sans-serif';
     ctx.fillText('Drag to view • Space to pause', 10, height - 10);
-  }, [creatures, robots]);
+  }, [creatures, robots, canvasSize]);
 
   return (
     <div className="canvas-container">
       <canvas
         ref={canvasRef}
-        width={1000}
-        height={500}
         className="ecosystem-canvas"
       />
     </div>
