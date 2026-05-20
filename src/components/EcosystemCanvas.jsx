@@ -102,11 +102,33 @@ const EcosystemCanvas = ({ creatures, robots }) => {
         ctx.lineTo(x + (creature.vx > 0 ? 14 : -14), y + 3);
         ctx.closePath();
         ctx.fill();
-      } else if (creature.type === 'egg') {
-        ctx.fillStyle = '#f4d03f';
+      } else if (creature.type === 'babyFish') {
+        // Baby fish - smaller than regular fish
+        ctx.fillStyle = '#5dade2';
         ctx.beginPath();
-        ctx.ellipse(x, y, 3, 4, 0, 0, Math.PI * 2);
+        ctx.ellipse(x, y, 5, 3, creature.vx > 0 ? 0 : Math.PI, 0, Math.PI * 2);
         ctx.fill();
+        // Tail
+        ctx.fillStyle = '#3498db';
+        ctx.beginPath();
+        ctx.moveTo(x + (creature.vx > 0 ? 5 : -5), y);
+        ctx.lineTo(x + (creature.vx > 0 ? 9 : -9), y - 2);
+        ctx.lineTo(x + (creature.vx > 0 ? 9 : -9), y + 2);
+        ctx.closePath();
+        ctx.fill();
+      } else if (creature.type === 'tadpole') {
+        // Tadpole - round body with tail
+        ctx.fillStyle = '#f39c12';
+        ctx.beginPath();
+        ctx.arc(x - 2, y, 4, 0, Math.PI * 2);
+        ctx.fill();
+        // Tail
+        ctx.fillStyle = '#e67e22';
+        ctx.beginPath();
+        ctx.moveTo(x + 2, y);
+        ctx.lineTo(x + 8, y + (Math.sin(creature.age * 0.1) * 2));
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
       } else if (creature.type === 'mosquito') {
         // Mosquito fish
         ctx.fillStyle = '#e74c3c';
@@ -126,7 +148,7 @@ const EcosystemCanvas = ({ creatures, robots }) => {
           Math.hypot(c.x - creature.x, c.y - creature.y) < 120
       );
 
-      if (nearbyDanger && ['frog', 'fish', 'egg'].includes(creature.type)) {
+      if (nearbyDanger && creature.type === 'tadpole') {
         ctx.strokeStyle = 'rgba(255, 150, 100, 0.3)';
         ctx.lineWidth = 1;
         ctx.beginPath();

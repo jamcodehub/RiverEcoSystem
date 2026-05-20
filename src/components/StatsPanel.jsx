@@ -21,11 +21,19 @@ const StatsPanel = ({ stats }) => {
           </div>
         </div>
 
-        <div className="stat-item egg-stat">
-          <span className="stat-icon">🥚</span>
+        <div className="stat-item tadpole-stat">
+          <span className="stat-icon">🐟</span>
           <div className="stat-info">
-            <span className="stat-label">Eggs</span>
-            <span className="stat-value">{stats.eggs}</span>
+            <span className="stat-label">Tadpoles</span>
+            <span className="stat-value">{stats.tadpoles}</span>
+          </div>
+        </div>
+
+        <div className="stat-item babyfish-stat">
+          <span className="stat-icon">🐠</span>
+          <div className="stat-info">
+            <span className="stat-label">Baby Fish</span>
+            <span className="stat-value">{stats.babyFish}</span>
           </div>
         </div>
 
@@ -49,7 +57,7 @@ const StatsPanel = ({ stats }) => {
           <span className="stat-icon">📊</span>
           <div className="stat-info">
             <span className="stat-label">Total Life</span>
-            <span className="stat-value">{stats.frogs + stats.fish + stats.eggs + stats.mosquito}</span>
+            <span className="stat-value">{stats.frogs + stats.fish + stats.tadpoles + stats.babyFish + stats.mosquito}</span>
           </div>
         </div>
       </div>

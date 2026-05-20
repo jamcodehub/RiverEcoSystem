@@ -23,7 +23,8 @@ function App() {
   const prevCreaturesRef = useRef({
     frogs: 0,
     fish: 0,
-    eggs: 0,
+    tadpoles: 0,
+    babyFish: 0,
     mosquito: 0,
   });
   const gameLoopRef = useRef(null);
@@ -38,15 +39,17 @@ function App() {
     const currentCounts = {
       frogs: creatures.filter(c => c.type === 'frog').length,
       fish: creatures.filter(c => c.type === 'fish').length,
-      eggs: creatures.filter(c => c.type === 'egg').length,
+      tadpoles: creatures.filter(c => c.type === 'tadpole').length,
+      babyFish: creatures.filter(c => c.type === 'babyFish').length,
       mosquito: creatures.filter(c => c.type === 'mosquito').length,
     };
 
     // Check for native species death
     const nativeDeath = (prevCreaturesRef.current.frogs - currentCounts.frogs) +
-                        (prevCreaturesRef.current.fish - currentCounts.fish);
+                        (prevCreaturesRef.current.fish - currentCounts.fish) +
+                        (prevCreaturesRef.current.tadpoles - currentCounts.tadpoles);
     
-    // Check for frog birth (egg -> frog conversion)
+    // Check for frog birth (tadpole -> frog conversion)
     const frogBirth = Math.max(0, currentCounts.frogs - prevCreaturesRef.current.frogs);
 
     if (nativeDeath > 0 || frogBirth > 0) {
@@ -72,38 +75,24 @@ function App() {
             .map(creature => updateCreature(creature, prevCreatures))
             .filter(c => c && c.alive && c.age < c.lifespan);
 
-          // Mosquito fish attack
-          updated = updated.map(mosquito => {
-            if (mosquito.type === 'mosquito') {
-              const targets = updated.filter(
-                c => ['frog', 'fish', 'egg'].includes(c.type) &&
-                  distance(mosquito, c) < 15
-              );
-              if (targets.length > 0) {
-                return { ...mosquito };
-              }
-            }
-            return mosquito;
-          });
-
-          // Remove eaten creatures
+          // Mosquito fish attack - ONLY target tadpoles
           const eaten = new Set();
           updated.forEach(mosquito => {
             if (mosquito.type === 'mosquito') {
               updated.forEach(target => {
-                if (['frog', 'fish', 'egg'].includes(target.type) && distance(mosquito, target) < 15) {
+                if (target.type === 'tadpole' && distance(mosquito, target) < 15) {
                   eaten.add(target.id);
                 }
               });
             }
           });
 
-          updated = updated.filter(c => !eaten.has(c.id));
+          let modified = updated.filter(c => !eaten.has(c.id));
 
-          // Egg hatching
+          // Tadpole hatching (tadpole -> frog)
           const newCreatures = [];
-          updated = updated.map(creature => {
-            if (creature.type === 'egg' && creature.age > 300) {
+          modified = modified.map(creature => {
+            if (creature.type === 'tadpole' && creature.age > 300) {
               newCreatures.push({
                 ...creature,
                 type: 'frog',
@@ -111,29 +100,95 @@ function App() {
               });
               return null;
             }
+            // Baby fish maturation (babyFish -> fish)
+            if (creature.type === 'babyFish' && creature.age > 1500) {
+              newCreatures.push({
+                ...creature,
+                type: 'fish',
+                id: Math.random(),
+                lifespan: 5000,
+              });
+              return null;
+            }
             return creature;
           }).filter(Boolean);
 
-          // Random egg laying
-          if (Math.random() < 0.001 && updated.filter(c => c.type === 'egg').length < 5) {
-            const frogs = updated.filter(c => c.type === 'frog');
-            if (frogs.length > 0) {
-              const parent = frogs[Math.floor(Math.random() * frogs.length)];
-              newCreatures.push({
-                id: Math.random(),
-                type: 'egg',
-                x: parent.x + (Math.random() - 0.5) * 30,
-                y: parent.y + (Math.random() - 0.5) * 30,
-                vx: 0,
-                vy: 0,
-                age: 0,
-                alive: true,
-                lifespan: 800,
-              });
+          // Breeding system - Fish breed to make baby fish
+          const fishCount = modified.filter(c => c.type === 'fish').length;
+          if (Math.random() < 0.01 && fishCount > 1) {
+            const fishes = modified.filter(c => c.type === 'fish');
+            for (let i = 0; i < fishes.length; i++) {
+              for (let j = i + 1; j < fishes.length; j++) {
+                if (distance(fishes[i], fishes[j]) < 50) {
+                  if (Math.random() < 0.5) {
+                    newCreatures.push({
+                      id: Math.random(),
+                      type: 'babyFish',
+                      x: (fishes[i].x + fishes[j].x) / 2 + (Math.random() - 0.5) * 20,
+                      y: (fishes[i].y + fishes[j].y) / 2 + (Math.random() - 0.5) * 20,
+                      vx: (Math.random() - 0.5) * 1,
+                      vy: (Math.random() - 0.5) * 1,
+                      age: 0,
+                      alive: true,
+                      lifespan: 2500,
+                    });
+                  }
+                }
+              }
             }
           }
 
-          return [...updated, ...newCreatures];
+          // Breeding system - Frogs breed to make tadpoles
+          const frogCount = modified.filter(c => c.type === 'frog').length;
+          if (Math.random() < 0.01 && frogCount > 1) {
+            const frogs = modified.filter(c => c.type === 'frog');
+            for (let i = 0; i < frogs.length; i++) {
+              for (let j = i + 1; j < frogs.length; j++) {
+                if (distance(frogs[i], frogs[j]) < 50) {
+                  if (Math.random() < 0.5) {
+                    newCreatures.push({
+                      id: Math.random(),
+                      type: 'tadpole',
+                      x: (frogs[i].x + frogs[j].x) / 2 + (Math.random() - 0.5) * 20,
+                      y: (frogs[i].y + frogs[j].y) / 2 + (Math.random() - 0.5) * 20,
+                      vx: (Math.random() - 0.5) * 1,
+                      vy: (Math.random() - 0.5) * 1,
+                      age: 0,
+                      alive: true,
+                      lifespan: 400,
+                    });
+                  }
+                }
+              }
+            }
+          }
+
+          // Breeding system - Mosquito fish breed
+          const mosquitoCount = modified.filter(c => c.type === 'mosquito').length;
+          if (Math.random() < 0.01 && mosquitoCount > 1) {
+            const mosquitoes = modified.filter(c => c.type === 'mosquito');
+            for (let i = 0; i < mosquitoes.length; i++) {
+              for (let j = i + 1; j < mosquitoes.length; j++) {
+                if (distance(mosquitoes[i], mosquitoes[j]) < 50) {
+                  if (Math.random() < 0.5) {
+                    newCreatures.push({
+                      id: Math.random(),
+                      type: 'mosquito',
+                      x: (mosquitoes[i].x + mosquitoes[j].x) / 2 + (Math.random() - 0.5) * 20,
+                      y: (mosquitoes[i].y + mosquitoes[j].y) / 2 + (Math.random() - 0.5) * 20,
+                      vx: (Math.random() - 0.5) * 1,
+                      vy: (Math.random() - 0.5) * 1,
+                      age: 0,
+                      alive: true,
+                      lifespan: 1200,
+                    });
+                  }
+                }
+              }
+            }
+          }
+
+          return [...modified, ...newCreatures];
         });
 
         // Update robots - aggressive hunting behavior
@@ -245,7 +300,7 @@ function App() {
     if (creature.type === 'mosquito') {
       // Mosquito fish hunting behavior - pursue nearby prey
       const prey = allCreatures.filter(c => 
-        ['frog', 'fish', 'egg'].includes(c.type) && distance(creature, c) < 150
+        c.type === 'tadpole' && distance(creature, c) < 150
       );
 
       if (prey.length > 0) {
@@ -273,12 +328,20 @@ function App() {
         currentSpeed = 1.5;
       }
     } else {
-      // Check for nearby mosquito fish (for native species)
-      const nearbyMosquito = allCreatures.find(
-        c => c.type === 'mosquito' && distance(creature, c) < 120
-      );
+      // Check for nearby mosquito fish (for native species) - only flee if tadpole
+      if (creature.type !== 'tadpole') {
+        // Non-tadpoles ignore mosquitoes
+        if (Math.random() < 0.02) {
+          dirX = (Math.random() - 0.5) * 2;
+          dirY = (Math.random() - 0.5) * 2;
+        }
+        currentSpeed = 1.5;
+      } else {
+        const nearbyMosquito = allCreatures.find(
+          c => c.type === 'mosquito' && distance(creature, c) < 120
+        );
 
-      if (nearbyMosquito) {
+        if (nearbyMosquito) {
         // Flee behavior - speed increases with proximity
         const dist = distance(creature, nearbyMosquito);
         const dangerLevel = Math.max(0, 1 - dist / 120);
@@ -288,15 +351,16 @@ function App() {
         const dx = creature.x - nearbyMosquito.x;
         const dy = creature.y - nearbyMosquito.y;
         const len = Math.sqrt(dx * dx + dy * dy) || 1;
-        dirX = (dx / len) * currentSpeed;
-        dirY = (dy / len) * currentSpeed;
-      } else {
-        // Normal wandering
-        if (Math.random() < 0.02) {
-          dirX = (Math.random() - 0.5) * 2;
-          dirY = (Math.random() - 0.5) * 2;
+          dirX = (dx / len) * currentSpeed;
+          dirY = (dy / len) * currentSpeed;
+        } else {
+          // Normal wandering
+          if (Math.random() < 0.02) {
+            dirX = (Math.random() - 0.5) * 2;
+            dirY = (Math.random() - 0.5) * 2;
+          }
+          currentSpeed = 1.5;
         }
-        currentSpeed = 1.5;
       }
     }
 
@@ -325,8 +389,8 @@ function App() {
 
   const resetEcosystem = () => {
     const newCreatures = [];
-    // Add frogs
-    for (let i = 0; i < 5; i++) {
+    // Add frogs (20)
+    for (let i = 0; i < 20; i++) {
       newCreatures.push({
         id: Math.random(),
         type: 'frog',
@@ -339,8 +403,8 @@ function App() {
         lifespan: 5000,
       });
     }
-    // Add fish
-    for (let i = 0; i < 3; i++) {
+    // Add fish (20)
+    for (let i = 0; i < 20; i++) {
       newCreatures.push({
         id: Math.random(),
         type: 'fish',
@@ -353,29 +417,9 @@ function App() {
         lifespan: 5000,
       });
     }
-    // Add eggs
-    for (let i = 0; i < 2; i++) {
+    // Add mosquito fish (6) - they breed now
+    for (let i = 0; i < 6; i++) {
       newCreatures.push({
-        id: Math.random(),
-        type: 'egg',
-        x: Math.random() * 800 + 100,
-        y: Math.random() * 300 + 100,
-        vx: 0,
-        vy: 0,
-        age: 0,
-        alive: true,
-        lifespan: 800,
-      });
-    }
-    setCreatures(newCreatures);
-    setRobots([]);
-    setIsPaused(false);
-  };
-
-  const addMosquitoFish = () => {
-    const newMosquito = [];
-    for (let i = 0; i < 3; i++) {
-      newMosquito.push({
         id: Math.random(),
         type: 'mosquito',
         x: Math.random() * 800 + 100,
@@ -387,7 +431,9 @@ function App() {
         lifespan: 1200,
       });
     }
-    setCreatures(prev => [...prev, ...newMosquito]);
+    setCreatures(newCreatures);
+    setRobots([]);
+    setIsPaused(false);
   };
 
   const deployRobot = (code) => {
@@ -415,7 +461,8 @@ function App() {
   const stats = {
     frogs: creatures.filter(c => c.type === 'frog').length,
     fish: creatures.filter(c => c.type === 'fish').length,
-    eggs: creatures.filter(c => c.type === 'egg').length,
+    tadpoles: creatures.filter(c => c.type === 'tadpole').length,
+    babyFish: creatures.filter(c => c.type === 'babyFish').length,
     mosquito: creatures.filter(c => c.type === 'mosquito').length,
     robots: robots.length,
   };
@@ -433,9 +480,6 @@ function App() {
           
           <div className="bottom-controls">
             <div className="controls">
-              <button onClick={addMosquitoFish} className="btn btn-danger">
-                ➕ Spawn Mosquito Fish
-              </button>
               <button onClick={() => setShowRobotModal(true)} className="btn btn-primary">
                 🤖 Build Robot
               </button>
