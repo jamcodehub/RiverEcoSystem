@@ -82,7 +82,7 @@ function App() {
           updated.forEach(mosquito => {
             if (mosquito.type === 'mosquito') {
               updated.forEach(target => {
-                if ((target.type === 'tadpole' || target.type === 'babyFish') && distance(mosquito, target) < 15) {
+                if (target.type === 'tadpole' && distance(mosquito, target) < 15) {
                   eaten.add(target.id);
                 }
               });
@@ -196,7 +196,7 @@ function App() {
             for (let i = 0; i < mosquitoes.length; i++) {
               for (let j = i + 1; j < mosquitoes.length; j++) {
                 if (distance(mosquitoes[i], mosquitoes[j]) < 50) {
-                  if (Math.random() < 0.2) {
+                  if (Math.random() < 0.3) {
                     newCreatures.push({
                       id: Math.random(),
                       type: 'babyMosquito',
@@ -288,8 +288,8 @@ function App() {
               updated.y += updated.vy || 0;
 
               // Boundary wrapping
-              const CANVAS_W = 1000;
-              const CANVAS_H = 500;
+              const CANVAS_W = window.innerWidth;
+              const CANVAS_H = window.innerHeight;
               if (updated.x < 0) updated.x += CANVAS_W;
               if (updated.x > CANVAS_W) updated.x -= CANVAS_W;
               if (updated.y < 50) updated.y = 50;
@@ -330,7 +330,7 @@ function App() {
     if (creature.type === 'mosquito') {
       // Mosquito fish hunting behavior - pursue nearby prey
       const prey = allCreatures.filter(c => 
-        (c.type === 'tadpole' || c.type === 'babyFish') && distance(creature, c) < 150
+        c.type === 'tadpole' && distance(creature, c) < 150
       );
 
       if (prey.length > 0) {
@@ -400,8 +400,8 @@ function App() {
     updated.y = updated.y + dirY;
 
     // Boundaries with wrapping
-    const CANVAS_W = 1000;
-    const CANVAS_H = 500;
+    const CANVAS_W = window.innerWidth;
+    const CANVAS_H = window.innerHeight;
     if (updated.x < 0) updated.x += CANVAS_W;
     if (updated.x > CANVAS_W) updated.x -= CANVAS_W;
     if (updated.y < 50) updated.y = 50;
@@ -424,8 +424,8 @@ function App() {
       newCreatures.push({
         id: Math.random(),
         type: 'frog',
-        x: Math.random() * 800 + 100,
-        y: Math.random() * 300 + 100,
+        x: Math.random() * (window.innerWidth - 100) + 50,
+        y: 60 + Math.random() * (window.innerHeight - 120),
         vx: (Math.random() - 0.5) * 1.5,
         vy: (Math.random() - 0.5) * 1.5,
         age: 0,
@@ -439,8 +439,8 @@ function App() {
       newCreatures.push({
         id: Math.random(),
         type: 'fish',
-        x: Math.random() * 800 + 100,
-        y: Math.random() * 300 + 100,
+        x: Math.random() * (window.innerWidth - 100) + 50,
+        y: 60 + Math.random() * (window.innerHeight - 120),
         vx: (Math.random() - 0.5) * 1.5,
         vy: (Math.random() - 0.5) * 1.5,
         age: 0,
@@ -454,8 +454,8 @@ function App() {
       newCreatures.push({
         id: Math.random(),
         type: 'tadpole',
-        x: Math.random() * 800 + 100,
-        y: Math.random() * 300 + 100,
+        x: Math.random() * (window.innerWidth - 100) + 50,
+        y: 60 + Math.random() * (window.innerHeight - 120),
         vx: (Math.random() - 0.5) * 1.5,
         vy: (Math.random() - 0.5) * 1.5,
         age: 0,
@@ -469,8 +469,8 @@ function App() {
       newCreatures.push({
         id: Math.random(),
         type: 'mosquito',
-        x: Math.random() * 800 + 100,
-        y: Math.random() * 300 + 100,
+        x: Math.random() * (window.innerWidth - 100) + 50,
+        y: 60 + Math.random() * (window.innerHeight - 120),
         vx: (Math.random() - 0.5) * 1.5,
         vy: (Math.random() - 0.5) * 1.5,
         age: 0,
@@ -491,8 +491,8 @@ function App() {
     }
     const newRobot = {
       id: Math.random(),
-      x: Math.random() * 800 + 100,
-      y: Math.random() * 300 + 100,
+      x: Math.random() * (window.innerWidth - 100) + 50,
+      y: 60 + Math.random() * (window.innerHeight - 120),
       vx: 0,
       vy: 0,
       direction: 0, // Angle in radians
