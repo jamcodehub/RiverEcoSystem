@@ -450,6 +450,36 @@ function App() {
         breedingCooldown: 0,
       });
     }
+    // Add fish (15)
+    for (let i = 0; i < 15; i++) {
+      newCreatures.push({
+        id: Math.random(),
+        type: 'fish',
+        x: Math.random() * (window.innerWidth - 100) + 50,
+        y: 60 + Math.random() * (window.innerHeight - 120),
+        vx: (Math.random() - 0.5) * 1.5,
+        vy: (Math.random() - 0.5) * 1.5,
+        age: 0,
+        alive: true,
+        lifespan: 36000,
+        breedingCooldown: 0,
+      });
+    }
+    // Add mosquito fish (10)
+    for (let i = 0; i < 10; i++) {
+      newCreatures.push({
+        id: Math.random(),
+        type: 'mosquito',
+        x: Math.random() * (window.innerWidth - 100) + 50,
+        y: 60 + Math.random() * (window.innerHeight - 120),
+        vx: (Math.random() - 0.5) * 1.5,
+        vy: (Math.random() - 0.5) * 1.5,
+        age: 0,
+        alive: true,
+        lifespan: 36000,
+        breedingCooldown: 0,
+      });
+    }
     setCreatures(newCreatures);
     setRobots([]);
     setIsPaused(false);
