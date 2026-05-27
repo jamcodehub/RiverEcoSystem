@@ -105,6 +105,7 @@ function App() {
                 ...creature,
                 type: 'frog',
                 id: Math.random(),
+                lifespan: 36000,
               });
               return null;
             }
@@ -114,7 +115,7 @@ function App() {
                 ...creature,
                 type: 'fish',
                 id: Math.random(),
-                lifespan: 5000,
+                lifespan: 36000,
               });
               return null;
             }
@@ -124,7 +125,7 @@ function App() {
                 ...creature,
                 type: 'mosquito',
                 id: Math.random(),
-                lifespan: 8000,
+                lifespan: 36000,
               });
               return null;
             }
@@ -148,7 +149,7 @@ function App() {
                       vy: (Math.random() - 0.5) * 1,
                       age: 0,
                       alive: true,
-                      lifespan: 7200,
+                      lifespan: 18000,
                       breedingCooldown: 0,
                     });
                     // Mark both parents with cooldown (update in modified array)
@@ -177,7 +178,7 @@ function App() {
                       vy: (Math.random() - 0.5) * 1,
                       age: 0,
                       alive: true,
-                      lifespan: 7200,
+                      lifespan: 18000,
                       breedingCooldown: 0,
                     });
                     // Mark both parents with cooldown (update in modified array)
@@ -191,7 +192,7 @@ function App() {
 
           // Breeding system - Mosquito fish breed to make baby mosquitoes (20% chance)
           const mosquitoCount = modified.filter(c => c.type === 'mosquito').length;
-          if (Math.random() < 0.002 && mosquitoCount > 1) {
+          if (Math.random() < 0.003 && mosquitoCount > 1) {
             const mosquitoes = modified.filter(c => c.type === 'mosquito' && (c.breedingCooldown || 0) <= 0);
             for (let i = 0; i < mosquitoes.length; i++) {
               for (let j = i + 1; j < mosquitoes.length; j++) {
@@ -206,7 +207,7 @@ function App() {
                       vy: (Math.random() - 0.5) * 1,
                       age: 0,
                       alive: true,
-                      lifespan: 7200,
+                      lifespan: 18000,
                       breedingCooldown: 0,
                     });
                     // Mark both parents with cooldown (update in modified array)
@@ -399,13 +400,13 @@ function App() {
     updated.x = updated.x + dirX;
     updated.y = updated.y + dirY;
 
-    // Boundaries with wrapping
+    // Boundaries with wrapping - full viewport
     const CANVAS_W = window.innerWidth;
     const CANVAS_H = window.innerHeight;
     if (updated.x < 0) updated.x += CANVAS_W;
     if (updated.x > CANVAS_W) updated.x -= CANVAS_W;
-    if (updated.y < 50) updated.y = 50;
-    if (updated.y > CANVAS_H - 50) updated.y = CANVAS_H - 50;
+    if (updated.y < 0) updated.y += CANVAS_H;
+    if (updated.y > CANVAS_H) updated.y -= CANVAS_H;
 
     updated.alive = true;
     return updated;
@@ -430,22 +431,7 @@ function App() {
         vy: (Math.random() - 0.5) * 1.5,
         age: 0,
         alive: true,
-        lifespan: 5000,
-        breedingCooldown: 0,
-      });
-    }
-    // Add fish (20)
-    for (let i = 0; i < 20; i++) {
-      newCreatures.push({
-        id: Math.random(),
-        type: 'fish',
-        x: Math.random() * (window.innerWidth - 100) + 50,
-        y: 60 + Math.random() * (window.innerHeight - 120),
-        vx: (Math.random() - 0.5) * 1.5,
-        vy: (Math.random() - 0.5) * 1.5,
-        age: 0,
-        alive: true,
-        lifespan: 5000,
+        lifespan: 36000,
         breedingCooldown: 0,
       });
     }
@@ -460,22 +446,7 @@ function App() {
         vy: (Math.random() - 0.5) * 1.5,
         age: 0,
         alive: true,
-        lifespan: 7200,
-        breedingCooldown: 0,
-      });
-    }
-    // Add mosquito fish (6) - they breed now, longer lifespan
-    for (let i = 0; i < 6; i++) {
-      newCreatures.push({
-        id: Math.random(),
-        type: 'mosquito',
-        x: Math.random() * (window.innerWidth - 100) + 50,
-        y: 60 + Math.random() * (window.innerHeight - 120),
-        vx: (Math.random() - 0.5) * 1.5,
-        vy: (Math.random() - 0.5) * 1.5,
-        age: 0,
-        alive: true,
-        lifespan: 8000,
+        lifespan: 36000,
         breedingCooldown: 0,
       });
     }
