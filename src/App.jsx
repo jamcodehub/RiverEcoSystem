@@ -400,13 +400,19 @@ function App() {
     updated.x = updated.x + dirX;
     updated.y = updated.y + dirY;
 
-    // Boundaries with wrapping - full viewport
+    // Boundaries - wrap horizontally, constrain vertically to river
     const CANVAS_W = window.innerWidth;
     const CANVAS_H = window.innerHeight;
+    const RIVER_TOP = 50;
+    const RIVER_BOTTOM = CANVAS_H - 50;
+    
+    // Wrap horizontally
     if (updated.x < 0) updated.x += CANVAS_W;
     if (updated.x > CANVAS_W) updated.x -= CANVAS_W;
-    if (updated.y < 0) updated.y += CANVAS_H;
-    if (updated.y > CANVAS_H) updated.y -= CANVAS_H;
+    
+    // Constrain vertically to river bounds (no wrapping)
+    if (updated.y < RIVER_TOP) updated.y = RIVER_TOP;
+    if (updated.y > RIVER_BOTTOM) updated.y = RIVER_BOTTOM;
 
     updated.alive = true;
     return updated;
