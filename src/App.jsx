@@ -148,12 +148,12 @@ function App() {
             for (let i = 0; i < fishes.length; i++) {
               for (let j = i + 1; j < fishes.length; j++) {
                 if (distance(fishes[i], fishes[j]) < 50) {
-                  if (Math.random() < 0.2) {
+                  if (Math.random() < 0.25) {
                     newCreatures.push({
                       id: Math.random(),
                       type: 'babyFish',
-                      x: (fishes[i].x + fishes[j].x) / 2 + (Math.random() - 0.5) * 20,
-                      y: (fishes[i].y + fishes[j].y) / 2 + (Math.random() - 0.5) * 20,
+                      x: (fishes[i].x + fishes[j].x) / 2 + (Math.random() - 0.5) * 30,
+                      y: (fishes[i].y + fishes[j].y) / 2 + (Math.random() - 0.5) * 30,
                       vx: (Math.random() - 0.5) * 1,
                       vy: (Math.random() - 0.5) * 1,
                       age: 0,
@@ -183,12 +183,12 @@ function App() {
             for (let i = 0; i < frogs.length; i++) {
               for (let j = i + 1; j < frogs.length; j++) {
                 if (distance(frogs[i], frogs[j]) < 50) {
-                  if (Math.random() < 0.2) {
+                  if (Math.random() < 0.25) {
                     newCreatures.push({
                       id: Math.random(),
                       type: 'tadpole',
-                      x: (frogs[i].x + frogs[j].x) / 2 + (Math.random() - 0.5) * 20,
-                      y: (frogs[i].y + frogs[j].y) / 2 + (Math.random() - 0.5) * 20,
+                      x: (frogs[i].x + frogs[j].x) / 2 + (Math.random() - 0.5) * 25,
+                      y: (frogs[i].y + frogs[j].y) / 2 + (Math.random() - 0.5) * 25,
                       vx: (Math.random() - 0.5) * 1,
                       vy: (Math.random() - 0.5) * 1,
                       age: 0,
@@ -218,12 +218,12 @@ function App() {
             for (let i = 0; i < mosquitoes.length; i++) {
               for (let j = i + 1; j < mosquitoes.length; j++) {
                 if (distance(mosquitoes[i], mosquitoes[j]) < 50) {
-                  if (Math.random() < 0.3) {
+                  if (Math.random() < 0.35) {
                     newCreatures.push({
                       id: Math.random(),
                       type: 'babyMosquito',
-                      x: (mosquitoes[i].x + mosquitoes[j].x) / 2 + (Math.random() - 0.5) * 20,
-                      y: (mosquitoes[i].y + mosquitoes[j].y) / 2 + (Math.random() - 0.5) * 20,
+                      x: (mosquitoes[i].x + mosquitoes[j].x) / 2 + (Math.random() - 0.5) * 30,
+                      y: (mosquitoes[i].y + mosquitoes[j].y) / 2 + (Math.random() - 0.5) * 30,
                       vx: (Math.random() - 0.5) * 1,
                       vy: (Math.random() - 0.5) * 1,
                       age: 0,
