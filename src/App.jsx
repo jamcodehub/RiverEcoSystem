@@ -210,7 +210,7 @@ function App() {
             );
           }
 
-          // Breeding system - Mosquito fish breed to make baby mosquitoes (30% chance)
+          // Breeding system - Mosquito fish breed to make baby mosquitoes (30% chance) :)
           const mosquitoCount = modified.filter(c => c.type === 'mosquito').length;
           if (Math.random() < 0.0033 && mosquitoCount > 1) {
             const mosquitoes = modified.filter(c => c.type === 'mosquito' && (c.breedingCooldown || 0) <= 0);
