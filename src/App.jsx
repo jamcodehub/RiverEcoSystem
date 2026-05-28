@@ -142,7 +142,7 @@ function App() {
 
           // Breeding system - Fish breed to make baby fish (20% chance)
           const fishCount = modified.filter(c => c.type === 'fish').length;
-          if (Math.random() < 0.002 && fishCount > 1) {
+          if (Math.random() < 0.0022 && fishCount > 1) {
             const fishes = modified.filter(c => c.type === 'fish' && (c.breedingCooldown || 0) <= 0);
             const fishBreedingIds = new Set();
             for (let i = 0; i < fishes.length; i++) {
@@ -177,7 +177,7 @@ function App() {
 
           // Breeding system - Frogs breed to make tadpoles (20% chance)
           const frogCount = modified.filter(c => c.type === 'frog').length;
-          if (Math.random() < 0.002 && frogCount > 1) {
+          if (Math.random() < 0.0022 && frogCount > 1) {
             const frogs = modified.filter(c => c.type === 'frog' && (c.breedingCooldown || 0) <= 0);
             const frogBreedingIds = new Set();
             for (let i = 0; i < frogs.length; i++) {
@@ -187,8 +187,8 @@ function App() {
                     newCreatures.push({
                       id: Math.random(),
                       type: 'tadpole',
-                      x: (frogs[i].x + frogs[j].x) / 2 + (Math.random() - 0.5) * 30,
-                      y: (frogs[i].y + frogs[j].y) / 2 + (Math.random() - 0.5) * 30,
+                      x: (frogs[i].x + frogs[j].x) / 2 + (Math.random() - 0.5) * 20,
+                      y: (frogs[i].y + frogs[j].y) / 2 + (Math.random() - 0.5) * 20,
                       vx: (Math.random() - 0.5) * 1,
                       vy: (Math.random() - 0.5) * 1,
                       age: 0,
@@ -212,7 +212,7 @@ function App() {
 
           // Breeding system - Mosquito fish breed to make baby mosquitoes (30% chance)
           const mosquitoCount = modified.filter(c => c.type === 'mosquito').length;
-          if (Math.random() < 0.003 && mosquitoCount > 1) {
+          if (Math.random() < 0.0033 && mosquitoCount > 1) {
             const mosquitoes = modified.filter(c => c.type === 'mosquito' && (c.breedingCooldown || 0) <= 0);
             const mosquitoBreedingIds = new Set();
             for (let i = 0; i < mosquitoes.length; i++) {
