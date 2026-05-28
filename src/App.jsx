@@ -79,16 +79,17 @@ function App() {
             .filter(c => c && c.alive && c.age < c.lifespan);
 
           // Mosquito fish attack - target tadpoles and baby fish
+          // Tadpoles are 50% more likely targets (easier prey)
           const eaten = new Set();
           updated.forEach(mosquito => {
             if (mosquito.type === 'mosquito') {
               updated.forEach(target => {
                 if (distance(mosquito, target) < 15) {
-                  // Tadpoles are primary prey (always eaten when close)
-                  if (target.type === 'tadpole') {
+                  // Tadpoles: 75% chance (50% more likely than baby fish at 50%)
+                  if (target.type === 'tadpole' && Math.random() < 0.75) {
                     eaten.add(target.id);
                   }
-                  // Baby fish are secondary prey (50% chance when close)
+                  // Baby fish: 50% chance (secondary prey)
                   else if (target.type === 'babyFish' && Math.random() < 0.5) {
                     eaten.add(target.id);
                   }
