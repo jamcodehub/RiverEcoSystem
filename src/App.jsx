@@ -144,6 +144,7 @@ function App() {
           const fishCount = modified.filter(c => c.type === 'fish').length;
           if (Math.random() < 0.002 && fishCount > 1) {
             const fishes = modified.filter(c => c.type === 'fish' && (c.breedingCooldown || 0) <= 0);
+            const fishBreedingIds = new Set();
             for (let i = 0; i < fishes.length; i++) {
               for (let j = i + 1; j < fishes.length; j++) {
                 if (distance(fishes[i], fishes[j]) < 50) {
@@ -160,19 +161,25 @@ function App() {
                       lifespan: 18000,
                       breedingCooldown: 0,
                     });
-                    // Mark both parents with cooldown (update in modified array)
-                    fishes[i] = { ...fishes[i], breedingCooldown: 3600 };
-                    fishes[j] = { ...fishes[j], breedingCooldown: 3600 };
+                    fishBreedingIds.add(fishes[i].id);
+                    fishBreedingIds.add(fishes[j].id);
                   }
                 }
               }
             }
+            // Apply breeding cooldown to modified array
+            modified = modified.map(c => 
+              c.type === 'fish' && fishBreedingIds.has(c.id)
+                ? { ...c, breedingCooldown: 3600 }
+                : c
+            );
           }
 
           // Breeding system - Frogs breed to make tadpoles (20% chance)
           const frogCount = modified.filter(c => c.type === 'frog').length;
           if (Math.random() < 0.002 && frogCount > 1) {
             const frogs = modified.filter(c => c.type === 'frog' && (c.breedingCooldown || 0) <= 0);
+            const frogBreedingIds = new Set();
             for (let i = 0; i < frogs.length; i++) {
               for (let j = i + 1; j < frogs.length; j++) {
                 if (distance(frogs[i], frogs[j]) < 50) {
@@ -189,19 +196,25 @@ function App() {
                       lifespan: 18000,
                       breedingCooldown: 0,
                     });
-                    // Mark both parents with cooldown (update in modified array)
-                    frogs[i] = { ...frogs[i], breedingCooldown: 3600 };
-                    frogs[j] = { ...frogs[j], breedingCooldown: 3600 };
+                    frogBreedingIds.add(frogs[i].id);
+                    frogBreedingIds.add(frogs[j].id);
                   }
                 }
               }
             }
+            // Apply breeding cooldown to modified array
+            modified = modified.map(c => 
+              c.type === 'frog' && frogBreedingIds.has(c.id)
+                ? { ...c, breedingCooldown: 3600 }
+                : c
+            );
           }
 
-          // Breeding system - Mosquito fish breed to make baby mosquitoes (20% chance)
+          // Breeding system - Mosquito fish breed to make baby mosquitoes (30% chance)
           const mosquitoCount = modified.filter(c => c.type === 'mosquito').length;
           if (Math.random() < 0.003 && mosquitoCount > 1) {
             const mosquitoes = modified.filter(c => c.type === 'mosquito' && (c.breedingCooldown || 0) <= 0);
+            const mosquitoBreedingIds = new Set();
             for (let i = 0; i < mosquitoes.length; i++) {
               for (let j = i + 1; j < mosquitoes.length; j++) {
                 if (distance(mosquitoes[i], mosquitoes[j]) < 50) {
@@ -218,13 +231,18 @@ function App() {
                       lifespan: 18000,
                       breedingCooldown: 0,
                     });
-                    // Mark both parents with cooldown (update in modified array)
-                    mosquitoes[i] = { ...mosquitoes[i], breedingCooldown: 3600 };
-                    mosquitoes[j] = { ...mosquitoes[j], breedingCooldown: 3600 };
+                    mosquitoBreedingIds.add(mosquitoes[i].id);
+                    mosquitoBreedingIds.add(mosquitoes[j].id);
                   }
                 }
               }
             }
+            // Apply breeding cooldown to modified array
+            modified = modified.map(c => 
+              c.type === 'mosquito' && mosquitoBreedingIds.has(c.id)
+                ? { ...c, breedingCooldown: 3600 }
+                : c
+            );
           }
 
           return [...modified, ...newCreatures];
