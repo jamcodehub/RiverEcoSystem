@@ -383,82 +383,22 @@ function App() {
         dirX = (dx / len) * currentSpeed;
         dirY = (dy / len) * currentSpeed;
       } else {
-        // No prey - look for breeding partners
-        const potentialPartner = allCreatures.find(c => 
-          c.type === 'mosquito' && 
-          c.id !== creature.id && 
-          distance(creature, c) < 100 &&
-          (c.breedingCooldown || 0) <= 0
-        );
-
-        if (potentialPartner) {
-          const dist = distance(creature, potentialPartner);
-          if (dist < 50) {
-            // Already close enough - normal wandering
-            if (Math.random() < 0.02) {
-              dirX = (Math.random() - 0.5) * 2;
-              dirY = (Math.random() - 0.5) * 2;
-            }
-            currentSpeed = 1.5;
-          } else {
-            // Move toward breeding partner
-            const dx = potentialPartner.x - creature.x;
-            const dy = potentialPartner.y - creature.y;
-            const len = Math.sqrt(dx * dx + dy * dy) || 1;
-            currentSpeed = 2.5;
-            dirX = (dx / len) * currentSpeed;
-            dirY = (dy / len) * currentSpeed;
-          }
-        } else {
-          // Wandering
-          if (Math.random() < 0.02) {
-            dirX = (Math.random() - 0.5) * 2;
-            dirY = (Math.random() - 0.5) * 2;
-          }
-          currentSpeed = 1.5;
-        }
-      }
-    }
-    // ===== FROG, FISH, AND BABY CREATURES BEHAVIOR =====
-    else if (creature.type === 'frog' || creature.type === 'fish' || creature.type === 'babyFish' || creature.type === 'babyMosquito') {
-      // Determine breeding type (babies breed as their adult form)
-      const breedingType = creature.type === 'babyFish' ? 'fish' : 
-                           creature.type === 'babyMosquito' ? 'mosquito' : 
-                           creature.type;
-      
-      const potentialPartner = allCreatures.find(c => 
-        c.type === breedingType && 
-        c.id !== creature.id && 
-        distance(creature, c) < 100 &&
-        (c.breedingCooldown || 0) <= 0
-      );
-
-      if (potentialPartner) {
-        const dist = distance(creature, potentialPartner);
-        if (dist < 50) {
-          // Already close enough - normal wandering
-          if (Math.random() < 0.02) {
-            dirX = (Math.random() - 0.5) * 2;
-            dirY = (Math.random() - 0.5) * 2;
-          }
-          currentSpeed = 1.5;
-        } else {
-          // Move toward breeding partner
-          const dx = potentialPartner.x - creature.x;
-          const dy = potentialPartner.y - creature.y;
-          const len = Math.sqrt(dx * dx + dy * dy) || 1;
-          currentSpeed = 2.5;
-          dirX = (dx / len) * currentSpeed;
-          dirY = (dy / len) * currentSpeed;
-        }
-      } else {
-        // No partner nearby - normal wandering
+        // No prey - normal wandering (breeding happens naturally when close)
         if (Math.random() < 0.02) {
           dirX = (Math.random() - 0.5) * 2;
           dirY = (Math.random() - 0.5) * 2;
         }
         currentSpeed = 1.5;
       }
+    }
+    // ===== FROG, FISH, AND BABY CREATURES BEHAVIOR =====
+    else if (creature.type === 'frog' || creature.type === 'fish' || creature.type === 'babyFish' || creature.type === 'babyMosquito') {
+      // Normal wandering - breeding happens naturally when close enough
+      if (Math.random() < 0.02) {
+        dirX = (Math.random() - 0.5) * 2;
+        dirY = (Math.random() - 0.5) * 2;
+      }
+      currentSpeed = 1.5;
     }
     // ===== DEFAULT BEHAVIOR =====
     else {
