@@ -13,6 +13,7 @@ function App() {
   const [showTelemetry, setShowTelemetry] = useState(false);
   const [gameTime, setGameTime] = useState(0);
   const [selectedRobotCode, setSelectedRobotCode] = useState([]);
+  const [gameSpeed, setGameSpeed] = useState(1); // Game speed multiplier
   const [telemetry, setTelemetry] = useState({
     gameTime: 0,
     nativeSpeciesKilled: 0,
@@ -74,16 +75,23 @@ function App() {
 
         setCreatures(prevCreatures => {
           let updated = prevCreatures
-            .map(creature => updateCreature(creature, prevCreatures))
+            .map(creature => updateCreature(creature, prevCreatures, gameSpeed))
             .filter(c => c && c.alive && c.age < c.lifespan);
 
-          // Mosquito fish attack - ONLY target tadpoles
+          // Mosquito fish attack - target tadpoles and baby fish
           const eaten = new Set();
           updated.forEach(mosquito => {
             if (mosquito.type === 'mosquito') {
               updated.forEach(target => {
-                if (target.type === 'tadpole' && distance(mosquito, target) < 15) {
-                  eaten.add(target.id);
+                if (distance(mosquito, target) < 15) {
+                  // Tadpoles are primary prey (always eaten when close)
+                  if (target.type === 'tadpole') {
+                    eaten.add(target.id);
+                  }
+                  // Baby fish are secondary prey (50% chance when close)
+                  else if (target.type === 'babyFish' && Math.random() < 0.5) {
+                    eaten.add(target.id);
+                  }
                 }
               });
             }
@@ -172,8 +180,8 @@ function App() {
                     newCreatures.push({
                       id: Math.random(),
                       type: 'tadpole',
-                      x: (frogs[i].x + frogs[j].x) / 2 + (Math.random() - 0.5) * 20,
-                      y: (frogs[i].y + frogs[j].y) / 2 + (Math.random() - 0.5) * 20,
+                      x: (frogs[i].x + frogs[j].x) / 2 + (Math.random() - 0.5) * 30,
+                      y: (frogs[i].y + frogs[j].y) / 2 + (Math.random() - 0.5) * 30,
                       vx: (Math.random() - 0.5) * 1,
                       vy: (Math.random() - 0.5) * 1,
                       age: 0,
@@ -318,74 +326,91 @@ function App() {
     }, 1000 / 60); // 60 FPS
 
     return () => clearInterval(gameLoop);
-  }, [isPaused, creatures]);
+  }, [isPaused, creatures, gameSpeed]);
 
-  const updateCreature = (creature, allCreatures) => {
+  const updateCreature = (creature, allCreatures, speedMult = 1) => {
     const updated = { ...creature };
-    updated.age = (updated.age || 0) + 1;
+    updated.age = (updated.age || 0) + speedMult;
 
-    let currentSpeed = 1.5;
     let dirX = updated.vx || (Math.random() - 0.5) * 1.5;
     let dirY = updated.vy || (Math.random() - 0.5) * 1.5;
+    let currentSpeed = 1.5;
 
-    if (creature.type === 'mosquito') {
-      // Mosquito fish hunting behavior - pursue nearby prey
-      const prey = allCreatures.filter(c => 
-        c.type === 'tadpole' && distance(creature, c) < 150
+    // ===== TADPOLE BEHAVIOR =====
+    if (creature.type === 'tadpole') {
+      const nearbyMosquito = allCreatures.find(
+        c => c.type === 'mosquito' && distance(creature, c) < 120
       );
-
-      if (prey.length > 0) {
-        // Hunt nearest target
-        const target = prey.reduce((closest, p) => 
-          distance(creature, p) < distance(creature, closest) ? p : closest
-        );
+      
+      if (nearbyMosquito) {
+        // Flee from predator
+        const dist = distance(creature, nearbyMosquito);
+        const dangerLevel = Math.max(0, 1 - dist / 120);
+        currentSpeed = 1.5 + dangerLevel * 3; // Ramp up to 4.5
         
-        const dist = distance(creature, target);
-        // Increase speed based on proximity - faster as they close in
-        currentSpeed = 2 + (1 - Math.min(dist / 150, 1)) * 2.5; // 2-4.5 speed
-        
-        // Move towards target
-        const dx = target.x - creature.x;
-        const dy = target.y - creature.y;
+        const dx = creature.x - nearbyMosquito.x;
+        const dy = creature.y - nearbyMosquito.y;
         const len = Math.sqrt(dx * dx + dy * dy) || 1;
         dirX = (dx / len) * currentSpeed;
         dirY = (dy / len) * currentSpeed;
       } else {
-        // Wandering behavior when no prey nearby
+        // Wandering
         if (Math.random() < 0.02) {
           dirX = (Math.random() - 0.5) * 2;
           dirY = (Math.random() - 0.5) * 2;
         }
         currentSpeed = 1.5;
       }
-    } else {
-      // Check for nearby mosquito fish (for native species) - only flee if tadpole
-      if (creature.type !== 'tadpole') {
-        // Non-tadpoles ignore mosquitoes
-        if (Math.random() < 0.02) {
-          dirX = (Math.random() - 0.5) * 2;
-          dirY = (Math.random() - 0.5) * 2;
-        }
-        currentSpeed = 1.5;
+    }
+    // ===== MOSQUITO BEHAVIOR =====
+    else if (creature.type === 'mosquito') {
+      const prey = allCreatures.filter(c => 
+        (c.type === 'tadpole' || c.type === 'babyFish') && distance(creature, c) < 150
+      );
+
+      if (prey.length > 0) {
+        // Hunt nearest prey (tadpoles or baby fish)
+        const target = prey.reduce((closest, p) => 
+          distance(creature, p) < distance(creature, closest) ? p : closest
+        );
+        
+        const dist = distance(creature, target);
+        currentSpeed = 2 + (1 - Math.min(dist / 150, 1)) * 2.5; // 2-4.5 speed
+        
+        const dx = target.x - creature.x;
+        const dy = target.y - creature.y;
+        const len = Math.sqrt(dx * dx + dy * dy) || 1;
+        dirX = (dx / len) * currentSpeed;
+        dirY = (dy / len) * currentSpeed;
       } else {
-        const nearbyMosquito = allCreatures.find(
-          c => c.type === 'mosquito' && distance(creature, c) < 120
+        // No prey - look for breeding partners
+        const potentialPartner = allCreatures.find(c => 
+          c.type === 'mosquito' && 
+          c.id !== creature.id && 
+          distance(creature, c) < 100 &&
+          (c.breedingCooldown || 0) <= 0
         );
 
-        if (nearbyMosquito) {
-        // Flee behavior - speed increases with proximity
-        const dist = distance(creature, nearbyMosquito);
-        const dangerLevel = Math.max(0, 1 - dist / 120);
-        currentSpeed = 1.5 + dangerLevel * 3; // Ramp up to 4.5
-
-        // Turn away from mosquito
-        const dx = creature.x - nearbyMosquito.x;
-        const dy = creature.y - nearbyMosquito.y;
-        const len = Math.sqrt(dx * dx + dy * dy) || 1;
-          dirX = (dx / len) * currentSpeed;
-          dirY = (dy / len) * currentSpeed;
+        if (potentialPartner) {
+          const dist = distance(creature, potentialPartner);
+          if (dist < 50) {
+            // Already close enough - normal wandering
+            if (Math.random() < 0.02) {
+              dirX = (Math.random() - 0.5) * 2;
+              dirY = (Math.random() - 0.5) * 2;
+            }
+            currentSpeed = 1.5;
+          } else {
+            // Move toward breeding partner
+            const dx = potentialPartner.x - creature.x;
+            const dy = potentialPartner.y - creature.y;
+            const len = Math.sqrt(dx * dx + dy * dy) || 1;
+            currentSpeed = 2.5;
+            dirX = (dx / len) * currentSpeed;
+            dirY = (dy / len) * currentSpeed;
+          }
         } else {
-          // Normal wandering
+          // Wandering
           if (Math.random() < 0.02) {
             dirX = (Math.random() - 0.5) * 2;
             dirY = (Math.random() - 0.5) * 2;
@@ -394,11 +419,61 @@ function App() {
         }
       }
     }
+    // ===== FROG, FISH, AND BABY CREATURES BEHAVIOR =====
+    else if (creature.type === 'frog' || creature.type === 'fish' || creature.type === 'babyFish' || creature.type === 'babyMosquito') {
+      // Determine breeding type (babies breed as their adult form)
+      const breedingType = creature.type === 'babyFish' ? 'fish' : 
+                           creature.type === 'babyMosquito' ? 'mosquito' : 
+                           creature.type;
+      
+      const potentialPartner = allCreatures.find(c => 
+        c.type === breedingType && 
+        c.id !== creature.id && 
+        distance(creature, c) < 100 &&
+        (c.breedingCooldown || 0) <= 0
+      );
 
+      if (potentialPartner) {
+        const dist = distance(creature, potentialPartner);
+        if (dist < 50) {
+          // Already close enough - normal wandering
+          if (Math.random() < 0.02) {
+            dirX = (Math.random() - 0.5) * 2;
+            dirY = (Math.random() - 0.5) * 2;
+          }
+          currentSpeed = 1.5;
+        } else {
+          // Move toward breeding partner
+          const dx = potentialPartner.x - creature.x;
+          const dy = potentialPartner.y - creature.y;
+          const len = Math.sqrt(dx * dx + dy * dy) || 1;
+          currentSpeed = 2.5;
+          dirX = (dx / len) * currentSpeed;
+          dirY = (dy / len) * currentSpeed;
+        }
+      } else {
+        // No partner nearby - normal wandering
+        if (Math.random() < 0.02) {
+          dirX = (Math.random() - 0.5) * 2;
+          dirY = (Math.random() - 0.5) * 2;
+        }
+        currentSpeed = 1.5;
+      }
+    }
+    // ===== DEFAULT BEHAVIOR =====
+    else {
+      if (Math.random() < 0.02) {
+        dirX = (Math.random() - 0.5) * 2;
+        dirY = (Math.random() - 0.5) * 2;
+      }
+      currentSpeed = 1.5;
+    }
+
+    // Apply velocity
     updated.vx = dirX;
     updated.vy = dirY;
-    updated.x = updated.x + dirX;
-    updated.y = updated.y + dirY;
+    updated.x = updated.x + dirX * speedMult;
+    updated.y = updated.y + dirY * speedMult;
 
     // Boundaries - wrap horizontally, constrain vertically to river
     const CANVAS_W = window.innerWidth;
@@ -406,11 +481,8 @@ function App() {
     const RIVER_TOP = 50;
     const RIVER_BOTTOM = CANVAS_H - 50;
     
-    // Wrap horizontally
     if (updated.x < 0) updated.x += CANVAS_W;
     if (updated.x > CANVAS_W) updated.x -= CANVAS_W;
-    
-    // Constrain vertically to river bounds (no wrapping)
     if (updated.y < RIVER_TOP) updated.y = RIVER_TOP;
     if (updated.y > RIVER_BOTTOM) updated.y = RIVER_BOTTOM;
 
@@ -554,6 +626,24 @@ function App() {
               >
                 📊 Telemetry
               </button>
+              
+              {/* Game Speed Controls */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginLeft: '20px', borderLeft: '1px solid #ccc', paddingLeft: '20px' }}>
+                <span style={{ fontSize: '12px', fontWeight: 'bold' }}>Speed:</span>
+                {[1, 2, 4, 8].map(speed => (
+                  <button
+                    key={speed}
+                    onClick={() => setGameSpeed(speed)}
+                    className="btn btn-secondary"
+                    style={{
+                      backgroundColor: gameSpeed === speed ? '#4CAF50' : undefined,
+                      color: gameSpeed === speed ? 'white' : undefined,
+                    }}
+                  >
+                    {speed}x
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
         </div>
