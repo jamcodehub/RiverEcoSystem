@@ -147,8 +147,8 @@ function App() {
             const fishBreedingIds = new Set();
             for (let i = 0; i < fishes.length; i++) {
               for (let j = i + 1; j < fishes.length; j++) {
-                if (distance(fishes[i], fishes[j]) < 50) {
-                  if (Math.random() < 0.25) {
+                if (distance(fishes[i], fishes[j]) < 80) {
+                  if (Math.random() < 0.30) {
                     newCreatures.push({
                       id: Math.random(),
                       type: 'babyFish',
@@ -170,7 +170,7 @@ function App() {
             // Apply breeding cooldown to modified array
             modified = modified.map(c => 
               c.type === 'fish' && fishBreedingIds.has(c.id)
-                ? { ...c, breedingCooldown: 3600 }
+                ? { ...c, breedingCooldown: 2400 }
                 : c
             );
           }
@@ -182,7 +182,7 @@ function App() {
             const frogBreedingIds = new Set();
             for (let i = 0; i < frogs.length; i++) {
               for (let j = i + 1; j < frogs.length; j++) {
-                if (distance(frogs[i], frogs[j]) < 50) {
+                if (distance(frogs[i], frogs[j]) < 80) {
                   if (Math.random() < 0.25) {
                     newCreatures.push({
                       id: Math.random(),
@@ -205,7 +205,7 @@ function App() {
             // Apply breeding cooldown to modified array
             modified = modified.map(c => 
               c.type === 'frog' && frogBreedingIds.has(c.id)
-                ? { ...c, breedingCooldown: 3600 }
+                ? { ...c, breedingCooldown: 2400 }
                 : c
             );
           }
@@ -217,7 +217,7 @@ function App() {
             const mosquitoBreedingIds = new Set();
             for (let i = 0; i < mosquitoes.length; i++) {
               for (let j = i + 1; j < mosquitoes.length; j++) {
-                if (distance(mosquitoes[i], mosquitoes[j]) < 50) {
+                if (distance(mosquitoes[i], mosquitoes[j]) < 80) {
                   if (Math.random() < 0.35) {
                     newCreatures.push({
                       id: Math.random(),
@@ -240,7 +240,7 @@ function App() {
             // Apply breeding cooldown to modified array
             modified = modified.map(c => 
               c.type === 'mosquito' && mosquitoBreedingIds.has(c.id)
-                ? { ...c, breedingCooldown: 3600 }
+                ? { ...c, breedingCooldown: 2400 }
                 : c
             );
           }
