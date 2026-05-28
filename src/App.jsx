@@ -393,7 +393,7 @@ function App() {
     }
     // ===== FROG, FISH, AND BABY CREATURES BEHAVIOR =====
     else if (creature.type === 'frog' || creature.type === 'fish' || creature.type === 'babyFish' || creature.type === 'babyMosquito') {
-      // Normal wandering - breeding happens naturally when close enough
+      // Normal wandering - only adults hunt/breed visually
       if (Math.random() < 0.02) {
         dirX = (Math.random() - 0.5) * 2;
         dirY = (Math.random() - 0.5) * 2;
