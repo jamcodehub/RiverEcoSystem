@@ -171,7 +171,7 @@ function App() {
             // Apply breeding cooldown to modified array
             modified = modified.map(c => 
               c.type === 'fish' && fishBreedingIds.has(c.id)
-                ? { ...c, breedingCooldown: 2400 }
+                ? { ...c, breedingCooldown: 1800 }
                 : c
             );
           }
@@ -206,7 +206,7 @@ function App() {
             // Apply breeding cooldown to modified array
             modified = modified.map(c => 
               c.type === 'frog' && frogBreedingIds.has(c.id)
-                ? { ...c, breedingCooldown: 2400 }
+                ? { ...c, breedingCooldown: 1800 }
                 : c
             );
           }
@@ -241,7 +241,7 @@ function App() {
             // Apply breeding cooldown to modified array
             modified = modified.map(c => 
               c.type === 'mosquito' && mosquitoBreedingIds.has(c.id)
-                ? { ...c, breedingCooldown: 2400 }
+                ? { ...c, breedingCooldown: 1300 }
                 : c
             );
           }
