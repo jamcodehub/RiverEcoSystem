@@ -187,6 +187,27 @@ const RobotBuilder = ({ onDeploy, onClose, selectedCode, setSelectedCode }) => {
     }
   };
 
+  const handleDropOnContainer = (e, parentIndex) => {
+    e.preventDefault();
+    e.stopPropagation();
+    e.currentTarget.style.borderColor = 'transparent';
+    e.currentTarget.style.backgroundColor = 'transparent';
+    if (draggedBlock && activeRobot) {
+      handleAddChildBlock(parentIndex, draggedBlock);
+      setDraggedBlock(null);
+    }
+  };
+
+  const handleContainerDragOver = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    e.currentTarget.style.backgroundColor = 'rgba(78, 205, 196, 0.2)';
+  };
+
+  const handleContainerDragLeave = (e) => {
+    e.currentTarget.style.backgroundColor = 'transparent';
+  };
+
   const getBlockColor = (category) => {
     switch (category) {
       case 'sensor':
@@ -225,11 +246,16 @@ const RobotBuilder = ({ onDeploy, onClose, selectedCode, setSelectedCode }) => {
         
         {isContainer && (
           <div className="container-body">
-            <div className="children-list">
+            <div
+              className="children-list"
+              onDragOver={handleContainerDragOver}
+              onDragLeave={handleContainerDragLeave}
+              onDrop={(e) => handleDropOnContainer(e, parentIndex !== null ? parentIndex : index)}
+            >
               {block.children && block.children.length > 0 ? (
-                block.children.map((child, cIdx) => renderCodeBlock(child, cIdx + 1, index, cIdx))
+                block.children.map((child, cIdx) => renderCodeBlock(child, cIdx + 1, parentIndex !== null ? parentIndex : index, cIdx))
               ) : (
-                <div className="empty-container">Drag blocks to add inside</div>
+                <div className="empty-container">Drag blocks here to add inside</div>
               )}
             </div>
           </div>
@@ -395,18 +421,6 @@ const RobotBuilder = ({ onDeploy, onClose, selectedCode, setSelectedCode }) => {
                   {activeRobot && activeRobot.code.map((block, index) => renderCodeBlock(block, index + 1))}
                 </div>
               )}
-            </div>
-
-            {/* Code Preview */}
-            <div className="code-preview">
-              <h4>Python Preview:</h4>
-              <pre>
-                {activeRobot && activeRobot.code.length === 0 ? (
-                  'No code yet...'
-                ) : (
-                  activeRobot && generatePython(activeRobot.code).trim()
-                )}
-              </pre>
             </div>
 
             {/* Action Buttons */}

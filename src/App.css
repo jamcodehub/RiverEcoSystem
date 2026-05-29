@@ -541,8 +541,9 @@ body {
 .code-panel h3 {
   font-size: 16px;
   font-weight: 600;
-  margin-bottom: 8px;
+  margin-bottom: 12px;
   color: #00d4ff;
+  flex-shrink: 0;
 }
 
 .panel-description {
@@ -638,14 +639,20 @@ body {
 /* ============ Code Workspace ============ */
 .code-workspace {
   background: #0a1929;
-  border: 1px solid #333;
+  border: 2px dashed #333;
   border-radius: 6px;
-  padding: 16px;
-  min-height: 200px;
-  max-height: 300px;
-  overflow-y: auto;
-  margin: 12px 0;
+  padding: 12px;
   flex: 1;
+  overflow-y: auto;
+  margin: 12px 0 12px 0;
+  display: flex;
+  flex-direction: column;
+  transition: all 0.2s;
+}
+
+.code-workspace:hover {
+  border-color: #4ecdc4;
+  background: rgba(10, 25, 41, 0.8);
 }
 
 .empty-workspace {
@@ -657,12 +664,14 @@ body {
   font-size: 14px;
   text-align: center;
   font-style: italic;
+  min-height: 200px;
 }
 
 .code-blocks-display {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  flex: 1;
 }
 
 .code-block-item {
@@ -739,29 +748,7 @@ body {
 
 /* ============ Code Preview ============ */
 .code-preview {
-  background: #0a1929;
-  border: 1px solid #333;
-  border-radius: 6px;
-  padding: 12px;
-  margin: 12px 0;
-}
-
-.code-preview h4 {
-  font-size: 12px;
-  color: #888;
-  margin-bottom: 8px;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-.code-preview pre {
-  font-family: 'Courier New', monospace;
-  font-size: 11px;
-  color: #00d4ff;
-  overflow-x: auto;
-  line-height: 1.5;
-  margin: 0;
-  background: transparent;
+  display: none;
 }
 
 /* ============ Builder Actions ============ */
@@ -769,6 +756,7 @@ body {
   display: flex;
   gap: 12px;
   margin-top: 12px;
+  flex-shrink: 0;
 }
 
 .builder-actions .btn {
@@ -1021,8 +1009,17 @@ body {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  min-height: 40px;
-  margin-bottom: 8px;
+  min-height: 60px;
+  margin-bottom: 0;
+  padding: 12px 8px;
+  border: 2px dashed rgba(78, 205, 196, 0.3);
+  border-radius: 4px;
+  transition: all 0.2s;
+}
+
+.children-list:hover {
+  border-color: rgba(78, 205, 196, 0.6);
+  background: rgba(78, 205, 196, 0.05);
 }
 
 .empty-container {
