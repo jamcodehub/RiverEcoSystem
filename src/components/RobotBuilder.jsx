@@ -229,24 +229,8 @@ const RobotBuilder = ({ onDeploy, onClose, selectedCode, setSelectedCode }) => {
               {block.children && block.children.length > 0 ? (
                 block.children.map((child, cIdx) => renderCodeBlock(child, cIdx + 1, index, cIdx))
               ) : (
-                <div className="empty-container">Click blocks to add inside</div>
+                <div className="empty-container">Drag blocks to add inside</div>
               )}
-            </div>
-            <div className="container-actions">
-              {block.canContain && AVAILABLE_BLOCKS
-                .filter(b => block.canContain.includes(b.category))
-                .slice(0, 3)
-                .map(availBlock => (
-                  <button
-                    key={availBlock.id}
-                    className="mini-add-btn"
-                    onClick={() => handleAddChildBlock(index, availBlock)}
-                    title={`Add ${availBlock.label}`}
-                  >
-                    + {availBlock.label}
-                  </button>
-                ))
-              }
             </div>
           </div>
         )}
