@@ -522,7 +522,7 @@ function App() {
     setIsPaused(false);
   };
 
-  const deployRobot = (code) => {
+  const deployRobot = (code, color = '#4ECDC4') => {
     if (code.length === 0) {
       alert('Build a robot with at least one code block!');
       return;
@@ -537,6 +537,7 @@ function App() {
       code: code,
       age: 0,
       alive: true,
+      color: color,
     };
     setRobots(prev => [...prev, newRobot]);
     setTelemetry(prev => ({ ...prev, totalRobotsDeployed: prev.totalRobotsDeployed + 1 }));

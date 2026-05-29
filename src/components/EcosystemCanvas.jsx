@@ -197,6 +197,7 @@ const EcosystemCanvas = ({ creatures, robots }) => {
       const huntSpeed = robot.huntingSpeed || 0;
       const maxSpeed = 4;
       const speedRatio = Math.min(huntSpeed / maxSpeed, 1);
+      const robotColor = robot.color || '#f39c12';
 
       // Hunting glow indicator
       if (speedRatio > 0.3) {
@@ -209,11 +210,11 @@ const EcosystemCanvas = ({ creatures, robots }) => {
       }
 
       // Robot body
-      ctx.fillStyle = '#f39c12';
+      ctx.fillStyle = robotColor;
       ctx.fillRect(x - 8, y - 8, 16, 16);
 
       // Speed indicator - color changes with speed
-      const speedColor = speedRatio > 0.7 ? '#ff4444' : speedRatio > 0.3 ? '#ffaa00' : '#f39c12';
+      const speedColor = speedRatio > 0.7 ? '#ff4444' : speedRatio > 0.3 ? '#ffaa00' : robotColor;
       ctx.strokeStyle = speedColor;
       ctx.lineWidth = 2 + (speedRatio * 2);
       ctx.strokeRect(x - 6, y - 6, 12, 12);
@@ -237,7 +238,6 @@ const EcosystemCanvas = ({ creatures, robots }) => {
     // Draw info text
     ctx.fillStyle = '#333';
     ctx.font = '12px sans-serif';
-    ctx.fillText('Drag to view • Space to pause', 10, height - 10);
   }, [creatures, robots, canvasSize]);
 
   return (
