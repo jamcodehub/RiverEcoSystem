@@ -62,34 +62,87 @@ const AVAILABLE_BLOCKS = [
   },
 ];
 
+const ROBOT_COLORS = [
+  '#FF6B6B', '#4ECDC4', '#FFE66D', '#95E1D3', '#F38181',
+  '#AA96DA', '#FCBAD3', '#A8D8EA', '#FFA07A', '#98D8C8'
+];
+
 const RobotBuilder = ({ onDeploy, onClose, selectedCode, setSelectedCode }) => {
+  const [robots, setRobots] = useState([
+    { id: 1, name: 'Robot 1', code: [], color: ROBOT_COLORS[0] }
+  ]);
+  const [activeRobotId, setActiveRobotId] = useState(1);
   const [draggedBlock, setDraggedBlock] = useState(null);
 
+  const activeRobot = robots.find(r => r.id === activeRobotId);
+
+  const createNewRobot = () => {
+    const newId = Math.max(...robots.map(r => r.id), 0) + 1;
+    const newRobot = {
+      id: newId,
+      name: `Robot ${robots.length + 1}`,
+      code: [],
+      color: ROBOT_COLORS[robots.length % ROBOT_COLORS.length]
+    };
+    setRobots([...robots, newRobot]);
+    setActiveRobotId(newId);
+  };
+
+  const deleteRobot = (id) => {
+    if (robots.length === 1) {
+      alert('You must have at least one robot!');
+      return;
+    }
+    const updated = robots.filter(r => r.id !== id);
+    setRobots(updated);
+    setActiveRobotId(updated[0].id);
+  };
+
+  const updateRobotCode = (code) => {
+    setRobots(robots.map(r => 
+      r.id === activeRobotId ? { ...r, code } : r
+    ));
+  };
+
+  const updateRobotColor = (color) => {
+    setRobots(robots.map(r => 
+      r.id === activeRobotId ? { ...r, color } : r
+    ));
+  };
+
   const handleAddBlock = (block) => {
-    setSelectedCode([...selectedCode, { ...block, children: [] }]);
+    if (activeRobot) {
+      updateRobotCode([...activeRobot.code, { ...block, children: [] }]);
+    }
   };
 
   const handleRemoveBlock = (index) => {
-    setSelectedCode(selectedCode.filter((_, i) => i !== index));
+    if (activeRobot) {
+      updateRobotCode(activeRobot.code.filter((_, i) => i !== index));
+    }
   };
 
   const handleAddChildBlock = (parentIndex, block) => {
-    const updated = [...selectedCode];
-    if (!updated[parentIndex].children) {
-      updated[parentIndex].children = [];
+    if (activeRobot) {
+      const updated = [...activeRobot.code];
+      if (!updated[parentIndex].children) {
+        updated[parentIndex].children = [];
+      }
+      updated[parentIndex].children.push({ ...block, children: [] });
+      updateRobotCode(updated);
     }
-    updated[parentIndex].children.push({ ...block, children: [] });
-    setSelectedCode(updated);
   };
 
   const handleRemoveChildBlock = (parentIndex, childIndex) => {
-    const updated = [...selectedCode];
-    updated[parentIndex].children.splice(childIndex, 1);
-    setSelectedCode(updated);
+    if (activeRobot) {
+      const updated = [...activeRobot.code];
+      updated[parentIndex].children.splice(childIndex, 1);
+      updateRobotCode(updated);
+    }
   };
 
   const handleClearCode = () => {
-    setSelectedCode([]);
+    updateRobotCode([]);
   };
 
   const generatePython = (blocks, indent = 0) => {
@@ -104,8 +157,34 @@ const RobotBuilder = ({ onDeploy, onClose, selectedCode, setSelectedCode }) => {
   };
 
   const handleDeploy = () => {
-    const pythonCode = generatePython(selectedCode);
-    onDeploy(pythonCode.split('\n').filter(l => l.trim()));
+    if (!activeRobot) return;
+    const pythonCode = generatePython(activeRobot.code);
+    onDeploy(pythonCode.split('\n').filter(l => l.trim()), activeRobot.color);
+  };
+
+  const handleDragStart = (e, block) => {
+    setDraggedBlock(block);
+  };
+
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    e.currentTarget.style.borderColor = '#4ECDC4';
+    e.currentTarget.style.backgroundColor = 'rgba(78, 205, 196, 0.1)';
+  };
+
+  const handleDragLeave = (e) => {
+    e.currentTarget.style.borderColor = 'transparent';
+    e.currentTarget.style.backgroundColor = 'transparent';
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    e.currentTarget.style.borderColor = 'transparent';
+    e.currentTarget.style.backgroundColor = 'transparent';
+    if (draggedBlock) {
+      handleAddBlock(draggedBlock);
+      setDraggedBlock(null);
+    }
   };
 
   const getBlockColor = (category) => {
@@ -183,11 +262,69 @@ const RobotBuilder = ({ onDeploy, onClose, selectedCode, setSelectedCode }) => {
           <button className="close-btn" onClick={onClose}>✕</button>
         </div>
 
+        {/* Robot Tabs */}
+        <div className="robot-tabs">
+          <div className="tabs-container">
+            {robots.map(robot => (
+              <div
+                key={robot.id}
+                className={`robot-tab ${activeRobotId === robot.id ? 'active' : ''}`}
+                style={{
+                  backgroundColor: activeRobotId === robot.id ? robot.color : 'transparent',
+                  borderColor: robot.color
+                }}
+              >
+                <button
+                  className="tab-button"
+                  onClick={() => setActiveRobotId(robot.id)}
+                  style={{
+                    color: activeRobotId === robot.id ? '#fff' : robot.color
+                  }}
+                >
+                  {robot.name}
+                </button>
+                {robots.length > 1 && (
+                  <button
+                    className="tab-delete"
+                    onClick={() => deleteRobot(robot.id)}
+                    title="Delete this robot"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+            ))}
+            <button className="btn-new-robot" onClick={createNewRobot} title="Create new robot">
+              + New Robot
+            </button>
+          </div>
+          
+          {activeRobot && (
+            <div className="robot-settings">
+              <label>Robot Color:</label>
+              <div className="color-picker">
+                {ROBOT_COLORS.map(color => (
+                  <button
+                    key={color}
+                    className="color-option"
+                    style={{
+                      backgroundColor: color,
+                      border: activeRobot.color === color ? '3px solid #333' : '2px solid #ddd'
+                    }}
+                    onClick={() => updateRobotColor(color)}
+                    title={`Set to ${color}`}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
         <div className="builder-container fullscreen-layout">
           {/* LEFT: Available Blocks */}
           <div className="blocks-panel">
             <h3>Blocks Library</h3>
-            <p className="panel-description">Click a block to add it</p>
+            <p className="panel-description">Drag blocks to the code space</p>
 
             <div className="block-categories">
               {/* Sensor Blocks */}
@@ -197,15 +334,16 @@ const RobotBuilder = ({ onDeploy, onClose, selectedCode, setSelectedCode }) => {
                 </h4>
                 <div className="blocks-list">
                   {AVAILABLE_BLOCKS.filter(b => b.category === 'sensor').map(block => (
-                    <button
+                    <div
                       key={block.id}
                       className="block-button sensor-block"
-                      onClick={() => handleAddBlock(block)}
+                      draggable
+                      onDragStart={(e) => handleDragStart(e, block)}
                       title={block.description}
                     >
                       <div className="block-label">{block.label}</div>
                       <div className="block-desc">{block.description}</div>
-                    </button>
+                    </div>
                   ))}
                 </div>
               </div>
@@ -217,15 +355,16 @@ const RobotBuilder = ({ onDeploy, onClose, selectedCode, setSelectedCode }) => {
                 </h4>
                 <div className="blocks-list">
                   {AVAILABLE_BLOCKS.filter(b => b.category === 'motor').map(block => (
-                    <button
+                    <div
                       key={block.id}
                       className="block-button motor-block"
-                      onClick={() => handleAddBlock(block)}
+                      draggable
+                      onDragStart={(e) => handleDragStart(e, block)}
                       title={block.description}
                     >
                       <div className="block-label">{block.label}</div>
                       <div className="block-desc">{block.description}</div>
-                    </button>
+                    </div>
                   ))}
                 </div>
               </div>
@@ -237,15 +376,16 @@ const RobotBuilder = ({ onDeploy, onClose, selectedCode, setSelectedCode }) => {
                 </h4>
                 <div className="blocks-list">
                   {AVAILABLE_BLOCKS.filter(b => b.category === 'control').map(block => (
-                    <button
+                    <div
                       key={block.id}
                       className="block-button control-block"
-                      onClick={() => handleAddBlock(block)}
+                      draggable
+                      onDragStart={(e) => handleDragStart(e, block)}
                       title={block.description}
                     >
                       <div className="block-label">{block.label}</div>
                       <div className="block-desc">{block.description}</div>
-                    </button>
+                    </div>
                   ))}
                 </div>
               </div>
@@ -256,14 +396,19 @@ const RobotBuilder = ({ onDeploy, onClose, selectedCode, setSelectedCode }) => {
           <div className="code-panel">
             <h3>Your Robot Code</h3>
 
-            <div className="code-workspace">
-              {selectedCode.length === 0 ? (
+            <div
+              className="code-workspace"
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
+            >
+              {activeRobot && activeRobot.code.length === 0 ? (
                 <div className="empty-workspace">
-                  <p>Click blocks on the left to build your robot's program</p>
+                  <p>Drag blocks from the left to build your robot's program</p>
                 </div>
               ) : (
                 <div className="code-blocks-display">
-                  {selectedCode.map((block, index) => renderCodeBlock(block, index + 1))}
+                  {activeRobot && activeRobot.code.map((block, index) => renderCodeBlock(block, index + 1))}
                 </div>
               )}
             </div>
@@ -272,10 +417,10 @@ const RobotBuilder = ({ onDeploy, onClose, selectedCode, setSelectedCode }) => {
             <div className="code-preview">
               <h4>Python Preview:</h4>
               <pre>
-                {selectedCode.length === 0 ? (
+                {activeRobot && activeRobot.code.length === 0 ? (
                   'No code yet...'
                 ) : (
-                  generatePython(selectedCode).trim()
+                  activeRobot && generatePython(activeRobot.code).trim()
                 )}
               </pre>
             </div>
@@ -285,30 +430,20 @@ const RobotBuilder = ({ onDeploy, onClose, selectedCode, setSelectedCode }) => {
               <button
                 className="btn btn-secondary"
                 onClick={handleClearCode}
-                disabled={selectedCode.length === 0}
+                disabled={!activeRobot || activeRobot.code.length === 0}
               >
                 Clear Code
               </button>
               <button
                 className="btn btn-primary"
                 onClick={handleDeploy}
-                disabled={selectedCode.length === 0}
+                disabled={!activeRobot || activeRobot.code.length === 0}
+                style={{ backgroundColor: activeRobot ? activeRobot.color : '#4ECDC4' }}
               >
                 Deploy Robot
               </button>
             </div>
           </div>
-        </div>
-
-        {/* Tips */}
-        <div className="builder-tips">
-          <h4>💡 Pro Tips:</h4>
-          <ul>
-            <li><strong>Sensors</strong> detect threats - click inside them to add actions</li>
-            <li><strong>Motors</strong> make robots move or act - swim/trap/kill</li>
-            <li><strong>Repeat</strong> blocks can contain other blocks for complex logic</li>
-            <li>Deploy multiple robots with different strategies to protect the river</li>
-          </ul>
         </div>
       </div>
     </div>
