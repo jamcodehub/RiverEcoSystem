@@ -110,15 +110,31 @@ const RobotBuilder = ({ onDeploy, onClose, selectedCode, setSelectedCode }) => {
     ));
   };
 
-  const handleAddBlock = (block) => {
+  const handleAddBlock = (block, x = 20, y = 20) => {
     if (activeRobot) {
-      updateRobotCode([...activeRobot.code, { ...block, children: [] }]);
+      updateRobotCode([...activeRobot.code, { ...block, children: [], x, y }]);
     }
   };
 
   const handleRemoveBlock = (index) => {
     if (activeRobot) {
       updateRobotCode(activeRobot.code.filter((_, i) => i !== index));
+    }
+  };
+
+  const handleMoveBlock = (index, x, y) => {
+    if (activeRobot) {
+      const updated = [...activeRobot.code];
+      updated[index] = { ...updated[index], x, y };
+      updateRobotCode(updated);
+    }
+  };
+
+  const handleMoveBlock = (index, x, y) => {
+    if (activeRobot) {
+      const updated = [...activeRobot.code];
+      updated[index] = { ...updated[index], x, y };
+      updateRobotCode(updated);
     }
   };
 
@@ -182,7 +198,10 @@ const RobotBuilder = ({ onDeploy, onClose, selectedCode, setSelectedCode }) => {
     e.currentTarget.style.borderColor = 'transparent';
     e.currentTarget.style.backgroundColor = 'transparent';
     if (draggedBlock) {
-      handleAddBlock(draggedBlock);
+      const rect = e.currentTarget.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      handleAddBlock(draggedBlock, x, y);
       setDraggedBlock(null);
     }
   };
@@ -223,9 +242,32 @@ const RobotBuilder = ({ onDeploy, onClose, selectedCode, setSelectedCode }) => {
 
   const renderCodeBlock = (block, index, parentIndex = null, childIndex = null) => {
     const isContainer = block.isContainer;
+    const isTopLevel = parentIndex === null;
     
     return (
-      <div key={`${parentIndex}-${index}`} className="code-block-wrapper">
+      <div
+        key={`${parentIndex}-${index}`}
+        className="code-block-wrapper"
+        style={isTopLevel ? { position: 'absolute', left: `${block.x || 20}px`, top: `${block.y || 20}px` } : {}}
+        draggable={isTopLevel}
+        onDragStart={(e) => {
+          if (isTopLevel) {
+            e.dataTransfer.effectAllowed = 'move';
+            setDraggedBlock({ ...block, originalIndex: index });
+          }
+        }}
+        onDragEnd={(e) => {
+          if (isTopLevel && e.dataTransfer.dropEffect === 'move') {
+            const codespace = document.querySelector('.code-workspace');
+            if (codespace) {
+              const rect = codespace.getBoundingClientRect();
+              const x = Math.max(0, e.clientX - rect.left);
+              const y = Math.max(0, e.clientY - rect.top);
+              handleMoveBlock(index, x, y);
+            }
+          }
+        }}
+      >
         <div
           className={`code-block-item category-${block.category} ${isContainer ? 'container-block' : ''}`}
           style={{ borderLeftColor: getBlockColor(block.category) }}
