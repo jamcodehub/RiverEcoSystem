@@ -286,10 +286,8 @@ const RobotBuilder = ({ onDeploy, onClose, selectedCode, setSelectedCode }) => {
               onDragLeave={handleContainerDragLeave}
               onDrop={(e) => handleDropOnContainer(e, parentIndex !== null ? parentIndex : index)}
             >
-              {block.children && block.children.length > 0 ? (
+              {block.children && block.children.length > 0 && (
                 block.children.map((child, cIdx) => renderCodeBlock(child, cIdx + 1, parentIndex !== null ? parentIndex : index, cIdx))
-              ) : (
-                <div className="empty-container">Drag blocks here to add inside</div>
               )}
             </div>
           </div>
