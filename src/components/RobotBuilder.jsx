@@ -130,14 +130,6 @@ const RobotBuilder = ({ onDeploy, onClose, selectedCode, setSelectedCode }) => {
     }
   };
 
-  const handleMoveBlock = (index, x, y) => {
-    if (activeRobot) {
-      const updated = [...activeRobot.code];
-      updated[index] = { ...updated[index], x, y };
-      updateRobotCode(updated);
-    }
-  };
-
   const handleAddChildBlock = (parentIndex, block) => {
     if (activeRobot) {
       const updated = [...activeRobot.code];
