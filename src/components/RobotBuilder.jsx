@@ -454,15 +454,14 @@ const RobotBuilder = ({ onDeploy, onClose, selectedCode, setSelectedCode }) => {
               onDragLeave={handleDragLeave}
               onDrop={handleDrop}
             >
-              {activeRobot && activeRobot.code.length === 0 ? (
+              {/* Always show the workspace, even if empty */}
+              {activeRobot && activeRobot.code.length === 0 && (
                 <div className="empty-workspace">
                   <p>Drag blocks from the left to build your robot's program</p>
                 </div>
-              ) : (
-                <div className="code-blocks-display">
-                  {activeRobot && activeRobot.code.map((block, index) => renderCodeBlock(block, index + 1))}
-                </div>
               )}
+              {/* Absolutely position all top-level blocks within the workspace */}
+              {activeRobot && activeRobot.code.map((block, index) => renderCodeBlock(block, index))}
             </div>
 
             {/* Action Buttons */}

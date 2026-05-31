@@ -637,6 +637,7 @@ body {
 }
 
 /* ============ Code Workspace ============ */
+
 .code-workspace {
   background: #0a1929;
   border: 2px dashed #333;
@@ -645,10 +646,10 @@ body {
   flex: 1;
   overflow: auto;
   margin: 12px 0 12px 0;
-  display: block;
   position: relative;
+  min-height: 400px;
+  width: 100%;
   transition: all 0.2s;
-  min-height: 300px;
 }
 
 .code-workspace:hover {
@@ -656,12 +657,9 @@ body {
   background: rgba(10, 25, 41, 0.8);
 }
 
-.code-blocks-display {
-  position: relative;
-  width: 100%;
-  height: 100%;
-  min-height: 300px;
-}
+.empty-workspace {
+  display: flex;
+  align-items: center;
   justify-content: center;
   height: 100%;
   color: #555;
@@ -671,12 +669,8 @@ body {
   min-height: 200px;
 }
 
-.code-blocks-display {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  flex: 1;
-}
+
+/* Remove .code-blocks-display flex column, not needed for absolute layout */
 
 .code-block-item {
   display: flex;
@@ -992,6 +986,8 @@ body {
 /* ============ Nested Blocks & Containers ============ */
 .code-block-wrapper {
   margin-bottom: 8px;
+  position: absolute;
+  /* left/top set inline by React for top-level blocks */
 }
 
 .container-block {
