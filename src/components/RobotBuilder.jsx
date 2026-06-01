@@ -27,11 +27,11 @@ const AVAILABLE_BLOCKS = [
     isAction: true,
   },
   {
-    id: 'motor-kill',
-    label: 'motor rotate (kill)',
-    description: 'Eliminate threat directly',
+    id: 'motor-eat',
+    label: 'motor rotate (eat)',
+    description: 'Capture and eat target',
     category: 'motor',
-    code: '  > motor rotate (kill)',
+    code: '  > motor rotate (eat)',
     isAction: true,
   },
   {
