@@ -528,8 +528,8 @@ function App() {
 
   const resetEcosystem = () => {
     const newCreatures = [];
-    // Add frogs (25)
-    for (let i = 0; i < 25; i++) {
+    // Add frogs (35)
+    for (let i = 0; i < 35; i++) {
       newCreatures.push({
         id: Math.random(),
         type: 'frog',
@@ -558,8 +558,8 @@ function App() {
         breedingCooldown: 0,
       });
     }
-    // Add fish (25)
-    for (let i = 0; i < 25; i++) {
+    // Add fish (35)
+    for (let i = 0; i < 35; i++) {
       newCreatures.push({
         id: Math.random(),
         type: 'fish',
