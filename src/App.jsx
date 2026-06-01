@@ -247,13 +247,18 @@ function App() {
           }
 
           // Heron predation - population control for frogs and fish
-          // Spawn herons when prey population gets too high
+          // Herons spawn at population thresholds and eat a fixed quota then disappear
           const preyCount = modified.filter(c => c.type === 'frog' || c.type === 'fish').length;
           const heronCount = modified.filter(c => c.type === 'heron').length;
-          const maxHerons = Math.max(1, Math.floor(preyCount / 100)); // 1 heron per 100 prey, min 1
           
-          if (preyCount > 500 && heronCount < maxHerons) {
-            // Spawn a new heron
+          // Determine max herons based on prey population
+          let maxHerons = 0;
+          if (preyCount >= 500) maxHerons = 2;
+          else if (preyCount >= 400) maxHerons = 2;
+          else if (preyCount >= 300) maxHerons = 1;
+          
+          // Spawn new herons if needed
+          if (heronCount < maxHerons) {
             newCreatures.push({
               id: Math.random(),
               type: 'heron',
@@ -263,29 +268,34 @@ function App() {
               vy: 0,
               age: 0,
               alive: true,
-              lifespan: 90000, // Longer lifespan, hunts naturally
+              lifespan: 8000, // Short lifespan - eat 50 and disappear
+              hunted: 0, // Track how many prey eaten
             });
           }
           
-          // Heron hunting - eat frogs and fish
+          // Heron hunting - eat frogs and fish (50 per heron quota)
           const heronEaten = new Set();
           modified.forEach(heron => {
-            if (heron.type === 'heron') {
+            if (heron.type === 'heron' && (heron.hunted || 0) < 50) {
               modified.forEach(target => {
-                if (distance(heron, target) < 120) {
+                if ((heron.hunted || 0) < 50 && distance(heron, target) < 120) {
                   // Frogs: 90% chance to be caught
                   if (target.type === 'frog' && Math.random() < 0.90) {
                     heronEaten.add(target.id);
+                    heron.hunted = (heron.hunted || 0) + 1;
                   }
                   // Fish: 90% chance to be caught
                   else if (target.type === 'fish' && Math.random() < 0.90) {
                     heronEaten.add(target.id);
+                    heron.hunted = (heron.hunted || 0) + 1;
                   }
                 }
               });
             }
           });
           
+          // Remove herons that have reached their quota
+          modified = modified.filter(c => !(c.type === 'heron' && (c.hunted || 0) >= 50));
           modified = modified.filter(c => !heronEaten.has(c.id));
 
           return [...modified, ...newCreatures];
