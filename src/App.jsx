@@ -326,7 +326,7 @@ function App() {
               return {
                 ...updated,
                 age: updated.age + 1,
-                alive: updated.age < 3000,
+                alive: true,
               };
             })
             .filter(r => r.alive);
