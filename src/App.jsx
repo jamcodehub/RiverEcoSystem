@@ -219,7 +219,7 @@ function App() {
             for (let i = 0; i < mosquitoes.length; i++) {
               for (let j = i + 1; j < mosquitoes.length; j++) {
                 if (distance(mosquitoes[i], mosquitoes[j]) < 80) {
-                  if (Math.random() < 0.35) {
+                  if (Math.random() < 0.45) {
                     newCreatures.push({
                       id: Math.random(),
                       type: 'babyMosquito',

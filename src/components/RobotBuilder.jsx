@@ -110,15 +110,23 @@ const RobotBuilder = ({ onDeploy, onClose, selectedCode, setSelectedCode }) => {
     ));
   };
 
-  const handleAddBlock = (block) => {
+  const handleAddBlock = (block, x = 20, y = 20) => {
     if (activeRobot) {
-      updateRobotCode([...activeRobot.code, { ...block, children: [] }]);
+      updateRobotCode([...activeRobot.code, { ...block, children: [], x, y }]);
     }
   };
 
   const handleRemoveBlock = (index) => {
     if (activeRobot) {
       updateRobotCode(activeRobot.code.filter((_, i) => i !== index));
+    }
+  };
+
+  const handleMoveBlock = (index, x, y) => {
+    if (activeRobot) {
+      const updated = [...activeRobot.code];
+      updated[index] = { ...updated[index], x, y };
+      updateRobotCode(updated);
     }
   };
 
@@ -182,9 +190,33 @@ const RobotBuilder = ({ onDeploy, onClose, selectedCode, setSelectedCode }) => {
     e.currentTarget.style.borderColor = 'transparent';
     e.currentTarget.style.backgroundColor = 'transparent';
     if (draggedBlock) {
-      handleAddBlock(draggedBlock);
+      const rect = e.currentTarget.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      handleAddBlock(draggedBlock, x, y);
       setDraggedBlock(null);
     }
+  };
+
+  const handleDropOnContainer = (e, parentIndex) => {
+    e.preventDefault();
+    e.stopPropagation();
+    e.currentTarget.style.borderColor = 'transparent';
+    e.currentTarget.style.backgroundColor = 'transparent';
+    if (draggedBlock && activeRobot) {
+      handleAddChildBlock(parentIndex, draggedBlock);
+      setDraggedBlock(null);
+    }
+  };
+
+  const handleContainerDragOver = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    e.currentTarget.style.backgroundColor = 'rgba(78, 205, 196, 0.2)';
+  };
+
+  const handleContainerDragLeave = (e) => {
+    e.currentTarget.style.backgroundColor = 'transparent';
   };
 
   const getBlockColor = (category) => {
@@ -202,9 +234,32 @@ const RobotBuilder = ({ onDeploy, onClose, selectedCode, setSelectedCode }) => {
 
   const renderCodeBlock = (block, index, parentIndex = null, childIndex = null) => {
     const isContainer = block.isContainer;
+    const isTopLevel = parentIndex === null;
     
     return (
-      <div key={`${parentIndex}-${index}`} className="code-block-wrapper">
+      <div
+        key={`${parentIndex}-${index}`}
+        className="code-block-wrapper"
+        style={isTopLevel ? { position: 'absolute', left: `${block.x || 20}px`, top: `${block.y || 20}px` } : {}}
+        draggable={isTopLevel}
+        onDragStart={(e) => {
+          if (isTopLevel) {
+            e.dataTransfer.effectAllowed = 'move';
+            setDraggedBlock({ ...block, originalIndex: index });
+          }
+        }}
+        onDragEnd={(e) => {
+          if (isTopLevel && e.dataTransfer.dropEffect === 'move') {
+            const codespace = document.querySelector('.code-workspace');
+            if (codespace) {
+              const rect = codespace.getBoundingClientRect();
+              const x = Math.max(0, e.clientX - rect.left);
+              const y = Math.max(0, e.clientY - rect.top);
+              handleMoveBlock(index, x, y);
+            }
+          }
+        }}
+      >
         <div
           className={`code-block-item category-${block.category} ${isContainer ? 'container-block' : ''}`}
           style={{ borderLeftColor: getBlockColor(block.category) }}
@@ -225,28 +280,15 @@ const RobotBuilder = ({ onDeploy, onClose, selectedCode, setSelectedCode }) => {
         
         {isContainer && (
           <div className="container-body">
-            <div className="children-list">
-              {block.children && block.children.length > 0 ? (
-                block.children.map((child, cIdx) => renderCodeBlock(child, cIdx + 1, index, cIdx))
-              ) : (
-                <div className="empty-container">Click blocks to add inside</div>
+            <div
+              className="children-list"
+              onDragOver={handleContainerDragOver}
+              onDragLeave={handleContainerDragLeave}
+              onDrop={(e) => handleDropOnContainer(e, parentIndex !== null ? parentIndex : index)}
+            >
+              {block.children && block.children.length > 0 && (
+                block.children.map((child, cIdx) => renderCodeBlock(child, cIdx + 1, parentIndex !== null ? parentIndex : index, cIdx))
               )}
-            </div>
-            <div className="container-actions">
-              {block.canContain && AVAILABLE_BLOCKS
-                .filter(b => block.canContain.includes(b.category))
-                .slice(0, 3)
-                .map(availBlock => (
-                  <button
-                    key={availBlock.id}
-                    className="mini-add-btn"
-                    onClick={() => handleAddChildBlock(index, availBlock)}
-                    title={`Add ${availBlock.label}`}
-                  >
-                    + {availBlock.label}
-                  </button>
-                ))
-              }
             </div>
           </div>
         )}
@@ -402,27 +444,14 @@ const RobotBuilder = ({ onDeploy, onClose, selectedCode, setSelectedCode }) => {
               onDragLeave={handleDragLeave}
               onDrop={handleDrop}
             >
-              {activeRobot && activeRobot.code.length === 0 ? (
+              {/* Always show the workspace, even if empty */}
+              {activeRobot && activeRobot.code.length === 0 && (
                 <div className="empty-workspace">
                   <p>Drag blocks from the left to build your robot's program</p>
                 </div>
-              ) : (
-                <div className="code-blocks-display">
-                  {activeRobot && activeRobot.code.map((block, index) => renderCodeBlock(block, index + 1))}
-                </div>
               )}
-            </div>
-
-            {/* Code Preview */}
-            <div className="code-preview">
-              <h4>Python Preview:</h4>
-              <pre>
-                {activeRobot && activeRobot.code.length === 0 ? (
-                  'No code yet...'
-                ) : (
-                  activeRobot && generatePython(activeRobot.code).trim()
-                )}
-              </pre>
+              {/* Absolutely position all top-level blocks within the workspace */}
+              {activeRobot && activeRobot.code.map((block, index) => renderCodeBlock(block, index))}
             </div>
 
             {/* Action Buttons */}
