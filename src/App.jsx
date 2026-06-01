@@ -85,12 +85,12 @@ function App() {
             if (mosquito.type === 'mosquito') {
               updated.forEach(target => {
                 if (distance(mosquito, target) < 15) {
-                  // Tadpoles: 75% chance (50% more likely than baby fish at 50%)
-                  if (target.type === 'tadpole' && Math.random() < 0.75) {
+                  // Tadpoles: 80% chance to be eaten, 20% chance to escape
+                  if (target.type === 'tadpole' && Math.random() < 0.80) {
                     eaten.add(target.id);
                   }
-                  // Baby fish: 50% chance (secondary prey)
-                  else if (target.type === 'babyFish' && Math.random() < 0.5) {
+                  // Baby fish: 80% chance to be eaten, 20% chance to escape
+                  else if (target.type === 'babyFish' && Math.random() < 0.80) {
                     eaten.add(target.id);
                   }
                 }
@@ -149,7 +149,7 @@ function App() {
             for (let i = 0; i < fishes.length; i++) {
               for (let j = i + 1; j < fishes.length; j++) {
                 if (distance(fishes[i], fishes[j]) < 80) {
-                  if (Math.random() < 0.30) {
+                  if (Math.random() < 0.36) {
                     newCreatures.push({
                       id: Math.random(),
                       type: 'babyFish',
@@ -184,7 +184,7 @@ function App() {
             for (let i = 0; i < frogs.length; i++) {
               for (let j = i + 1; j < frogs.length; j++) {
                 if (distance(frogs[i], frogs[j]) < 80) {
-                  if (Math.random() < 0.25) {
+                  if (Math.random() < 0.30) {
                     newCreatures.push({
                       id: Math.random(),
                       type: 'tadpole',
@@ -219,7 +219,7 @@ function App() {
             for (let i = 0; i < mosquitoes.length; i++) {
               for (let j = i + 1; j < mosquitoes.length; j++) {
                 if (distance(mosquitoes[i], mosquitoes[j]) < 80) {
-                  if (Math.random() < 0.45) {
+                  if (Math.random() < 0.54) {
                     newCreatures.push({
                       id: Math.random(),
                       type: 'babyMosquito',

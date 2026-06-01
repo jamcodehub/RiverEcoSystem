@@ -204,7 +204,15 @@ const RobotBuilder = ({ onDeploy, onClose, selectedCode, setSelectedCode }) => {
     e.currentTarget.style.borderColor = 'transparent';
     e.currentTarget.style.backgroundColor = 'transparent';
     if (draggedBlock && activeRobot) {
-      handleAddChildBlock(parentIndex, draggedBlock);
+      // Prevent adding a block to its own children (avoid duplication and infinite nesting)
+      if (draggedBlock.originalIndex !== undefined && draggedBlock.originalIndex === parentIndex) {
+        setDraggedBlock(null);
+        return;
+      }
+      // Only add if it's from the library (no originalIndex) or from a different block
+      if (draggedBlock.originalIndex === undefined) {
+        handleAddChildBlock(parentIndex, draggedBlock);
+      }
       setDraggedBlock(null);
     }
   };
