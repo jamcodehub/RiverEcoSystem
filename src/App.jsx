@@ -141,9 +141,13 @@ function App() {
             return creature;
           }).filter(Boolean);
 
+          // Population cap - stop breeding at 1000 creatures to prevent lag
+          const totalPopulation = modified.length + newCreatures.length;
+          const canBreed = totalPopulation < 1000;
+
           // Breeding system - Fish breed to make baby fish (40% chance)
           const fishCount = modified.filter(c => c.type === 'fish').length;
-          if (Math.random() < 0.008 && fishCount > 1) {
+          if (canBreed && Math.random() < 0.008 && fishCount > 1) {
             const fishes = modified.filter(c => c.type === 'fish' && (c.breedingCooldown || 0) <= 0);
             const fishBreedingIds = new Set();
             for (let i = 0; i < fishes.length; i++) {
@@ -178,7 +182,7 @@ function App() {
 
           // Breeding system - Frogs breed to make tadpoles (40% chance)
           const frogCount = modified.filter(c => c.type === 'frog').length;
-          if (Math.random() < 0.008 && frogCount > 1) {
+          if (canBreed && Math.random() < 0.008 && frogCount > 1) {
             const frogs = modified.filter(c => c.type === 'frog' && (c.breedingCooldown || 0) <= 0);
             const frogBreedingIds = new Set();
             for (let i = 0; i < frogs.length; i++) {
@@ -213,7 +217,7 @@ function App() {
 
           // Breeding system - Mosquito fish breed to make baby mosquitoes (48% chance - 20% more than frogs/fish)
           const mosquitoCount = modified.filter(c => c.type === 'mosquito').length;
-          if (Math.random() < 0.0096 && mosquitoCount > 1) {
+          if (canBreed && Math.random() < 0.0096 && mosquitoCount > 1) {
             const mosquitoes = modified.filter(c => c.type === 'mosquito' && (c.breedingCooldown || 0) <= 0);
             const mosquitoBreedingIds = new Set();
             for (let i = 0; i < mosquitoes.length; i++) {
