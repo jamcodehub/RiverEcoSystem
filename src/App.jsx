@@ -282,7 +282,7 @@ function App() {
                 heronNeeded = Math.max(heronNeeded, Math.ceil(imbalanceAmount / 75));
               }
               
-              maxHerons = Math.min(heronNeeded, 4); // Cap at 4 herons
+              maxHerons = Math.min(heronNeeded, 2); // Cap at 2 herons (was 4)
             }
           }
           
@@ -297,7 +297,7 @@ function App() {
               vy: 0,
               age: 0,
               alive: true,
-              lifespan: 8000, // Short lifespan - eat 50 and disappear
+              lifespan: 12000, // Longer lifespan - fewer respawns
               hunted: 0, // Track how many prey eaten
             });
           }
@@ -361,26 +361,45 @@ function App() {
             const fish = allCreatures.filter(c => c.type === 'fish').length;
             const excessPopulation = allCreatures.length - maxPopulation;
             
-            // Remove excess from the more abundant species to maintain balance
-            if (frogs > fish) {
-              // Remove excess frogs
-              const frogsToRemove = Math.min(frogs, excessPopulation);
-              let removed = 0;
-              allCreatures = allCreatures.filter(c => {
-                if (c.type === 'frog' && removed < frogsToRemove) {
-                  removed++;
-                  return false; // Remove this frog
-                }
-                return true;
-              });
+            // Remove excess proportionally from whichever is more abundant
+            // This maintains balance and avoids one species being wiped out
+            const imbalance = Math.abs(frogs - fish);
+            
+            if (imbalance > 20) {
+              // Species are imbalanced - remove from the more abundant one
+              if (frogs > fish) {
+                const frogsToRemove = Math.min(frogs - Math.ceil(frogs / 2), excessPopulation);
+                let removed = 0;
+                allCreatures = allCreatures.filter(c => {
+                  if (c.type === 'frog' && removed < frogsToRemove) {
+                    removed++;
+                    return false;
+                  }
+                  return true;
+                });
+              } else {
+                const fishToRemove = Math.min(fish - Math.ceil(fish / 2), excessPopulation);
+                let removed = 0;
+                allCreatures = allCreatures.filter(c => {
+                  if (c.type === 'fish' && removed < fishToRemove) {
+                    removed++;
+                    return false;
+                  }
+                  return true;
+                });
+              }
             } else {
-              // Remove excess fish
-              const fishToRemove = Math.min(fish, excessPopulation);
-              let removed = 0;
+              // Species are balanced - remove equally from both
+              const removePerSpecies = Math.ceil(excessPopulation / 2);
+              let frogsRemoved = 0, fishRemoved = 0;
               allCreatures = allCreatures.filter(c => {
-                if (c.type === 'fish' && removed < fishToRemove) {
-                  removed++;
-                  return false; // Remove this fish
+                if (c.type === 'frog' && frogsRemoved < removePerSpecies) {
+                  frogsRemoved++;
+                  return false;
+                }
+                if (c.type === 'fish' && fishRemoved < removePerSpecies) {
+                  fishRemoved++;
+                  return false;
                 }
                 return true;
               });
@@ -554,7 +573,7 @@ function App() {
     // ===== HERON BEHAVIOR =====
     else if (creature.type === 'heron') {
       const prey = allCreatures.filter(c => 
-        (c.type === 'frog' || c.type === 'fish') && distance(creature, c) < 200
+        (c.type === 'frog' || c.type === 'fish') && distance(creature, c) < 120
       );
 
       if (prey.length > 0) {
@@ -564,7 +583,7 @@ function App() {
         );
         
         const dist = distance(creature, target);
-        currentSpeed = 2 + (1 - Math.min(dist / 200, 1)) * 2; // 2-4 speed
+        currentSpeed = 1.5 + (1 - Math.min(dist / 120, 1)) * 1.5; // 1.5-3 speed (was 2-4)
         
         const dx = target.x - creature.x;
         const dy = target.y - creature.y;
