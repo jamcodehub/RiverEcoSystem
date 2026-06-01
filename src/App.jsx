@@ -252,9 +252,9 @@ function App() {
 
           // Heron predation - population control for frogs and fish
           // Herons spawn at population thresholds and eat to equilibriate species
-          const frogCount = modified.filter(c => c.type === 'frog').length;
-          const fishCount = modified.filter(c => c.type === 'fish').length;
-          const preyCount = frogCount + fishCount;
+          const heronFrogCount = modified.filter(c => c.type === 'frog').length;
+          const heronFishCount = modified.filter(c => c.type === 'fish').length;
+          const preyCount = heronFrogCount + heronFishCount;
           const heronCount = modified.filter(c => c.type === 'heron').length;
           
           // Determine max herons based on prey population
@@ -284,9 +284,9 @@ function App() {
           modified.forEach(heron => {
             if (heron.type === 'heron' && (heron.hunted || 0) < 50) {
               // Determine which species is more abundant
-              const currentFrogCount = modified.filter(c => c.type === 'frog').length;
-              const currentFishCount = modified.filter(c => c.type === 'fish').length;
-              const frogsMore = currentFrogCount > currentFishCount;
+              const currFrogCount = modified.filter(c => c.type === 'frog').length;
+              const currFishCount = modified.filter(c => c.type === 'fish').length;
+              const frogsMore = currFrogCount > currFishCount;
               
               modified.forEach(target => {
                 if ((heron.hunted || 0) < 50 && distance(heron, target) < 120) {
