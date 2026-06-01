@@ -51,28 +51,17 @@ const EcosystemCanvas = ({ creatures, robots }) => {
 
     // Draw river gradient
     const gradient = ctx.createLinearGradient(0, 50, 0, height - 50);
-    gradient.addColorStop(0, '#a8d8ff');
-    gradient.addColorStop(0.5, '#7fc8ff');
-    gradient.addColorStop(1, '#a8d8ff');
+    gradient.addColorStop(0, '#cde8ff');
+    gradient.addColorStop(0.5, '#6db3e9');
+    gradient.addColorStop(1, '#8abde6');
     ctx.fillStyle = gradient;
     ctx.fillRect(0, 50, width, height - 100);
 
     // Draw river banks
-    ctx.fillStyle = '#4a7c3a';
+    ctx.fillStyle = '#7bb92e';
     ctx.fillRect(0, 0, width, 50); // Top bank
-    ctx.fillStyle = '#3d6b2f';
+    ctx.fillStyle = '#49b429';
     ctx.fillRect(0, height - 50, width, 50); // Bottom bank
-
-    // Draw solid water lines
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
-    ctx.lineWidth = 1;
-    for (let i = 0; i < 5; i++) {
-      const yOffset = 100 + i * 60;
-      ctx.beginPath();
-      ctx.moveTo(0, yOffset);
-      ctx.lineTo(width, yOffset);
-      ctx.stroke();
-    }
 
     // Draw plants/reeds on banks (static)
     ctx.fillStyle = '#5a8c4a';
@@ -84,7 +73,7 @@ const EcosystemCanvas = ({ creatures, robots }) => {
     });
 
     // Draw rocks - responsive positioning
-    ctx.fillStyle = '#8b8680';
+    ctx.fillStyle = '#aaa39a';
     const scale = canvasSize.width / 1000;
     const rockPositions = [
       { x: 150 * scale, y: 280 * scale, r: 12 },
