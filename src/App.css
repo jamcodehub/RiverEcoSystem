@@ -64,7 +64,7 @@ body {
 
 .top-stats {
   pointer-events: auto;
-  background: transparent;
+  background: rgba(15, 30, 15, 0.224);
   border: none;
   padding: 8px 12px;
   max-width: 100%;
@@ -142,7 +142,7 @@ body {
 
 .stat-label {
   font-size: 11px;
-  color: #aaa;
+  color: #fefefe;
   text-transform: uppercase;
   font-weight: 500;
   letter-spacing: 0.5px;
@@ -158,7 +158,7 @@ body {
 .fish-stat .stat-value { color: #3498db; }
 .egg-stat .stat-value { color: #f4d03f; }
 .mosquito-stat .stat-value { color: #e74c3c; }
-.heron-stat .stat-value { color: #708090; }
+.heron-stat .stat-value { color: #ebebeb; }
 .robot-stat .stat-value { color: #f39c12; }
 .total-stat .stat-value { color: #9b59b6; }
 
