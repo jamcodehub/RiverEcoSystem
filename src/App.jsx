@@ -572,32 +572,20 @@ function App() {
     }
     // ===== HERON BEHAVIOR =====
     else if (creature.type === 'heron') {
-      const prey = allCreatures.filter(c => 
-        (c.type === 'frog' || c.type === 'fish') && distance(creature, c) < 120
-      );
-
-      if (prey.length > 0) {
-        // Hunt nearest prey
-        const target = prey.reduce((closest, p) => 
-          distance(creature, p) < distance(creature, closest) ? p : closest
-        );
-        
-        const dist = distance(creature, target);
-        currentSpeed = 1.5 + (1 - Math.min(dist / 120, 1)) * 1.5; // 1.5-3 speed (was 2-4)
-        
-        const dx = target.x - creature.x;
-        const dy = target.y - creature.y;
-        const len = Math.sqrt(dx * dx + dy * dy) || 1;
-        dirX = (dx / len) * currentSpeed;
-        dirY = (dy / len) * currentSpeed;
-      } else {
-        // No prey - patrol slowly
-        if (Math.random() < 0.01) {
-          dirX = (Math.random() - 0.5) * 1.5;
-          dirY = (Math.random() - 0.5) * 1.5;
-        }
-        currentSpeed = 1;
+      // Simple linear movement: herons swoop left-to-right or right-to-left
+      // They just fly straight and eat what they encounter
+      const speed = 3;
+      const CANVAS_W = window.innerWidth;
+      
+      // If no direction set, pick left or right
+      if (!creature.heronDirection) {
+        creature.heronDirection = Math.random() < 0.5 ? 1 : -1; // 1 = right, -1 = left
       }
+      
+      dirX = creature.heronDirection * speed;
+      dirY = 0; // Straight horizontal movement
+      currentSpeed = speed;
+    }
     }
     // ===== FROG, FISH, AND BABY CREATURES BEHAVIOR =====
     else if (creature.type === 'frog' || creature.type === 'fish' || creature.type === 'babyFish' || creature.type === 'babyMosquito') {
