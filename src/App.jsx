@@ -286,69 +286,59 @@ function App() {
             }
           }
           
-          // Spawn new herons if needed
+          // Spawn new herons if needed - spawn at left or right edge
           if (heronCount < maxHerons) {
+            const fromLeft = Math.random() < 0.5;
             newCreatures.push({
               id: Math.random(),
               type: 'heron',
-              x: Math.random() * (window.innerWidth - 100) + 50,
-              y: 60 + Math.random() * (window.innerHeight - 120),
-              vx: 0,
+              x: fromLeft ? -20 : window.innerWidth + 20,
+              y: 80 + Math.random() * (window.innerHeight - 160),
+              vx: fromLeft ? 3 : -3, // Fixed direction, never changes
               vy: 0,
               age: 0,
               alive: true,
-              lifespan: 12000, // Longer lifespan - fewer respawns
-              hunted: 0, // Track how many prey eaten
+              hunted: 0,
             });
           }
-          
-          // Heron hunting - eat only the overpopulated species to equilibriate
-          // Or hunt both equally if balanced but over-capacity
+
+          // Heron eating - consume prey in its path as it flies through
           const heronEaten = new Set();
           modified.forEach(heron => {
-            if (heron.type === 'heron' && (heron.hunted || 0) < 50) {
-              // Determine which species is more abundant
-              const currFrogCount = modified.filter(c => c.type === 'frog' && !heronEaten.has(c.id)).length;
-              const currFishCount = modified.filter(c => c.type === 'fish' && !heronEaten.has(c.id)).length;
-              
-              // Check if populations are roughly balanced (within 15% tolerance)
-              const frogRatio = currFrogCount / (currFrogCount + currFishCount);
-              const isBalanced = frogRatio > 0.42 && frogRatio < 0.58; // Roughly 40-60 split
-              
-              // Decide hunting strategy
-              const targetFrogs = currFrogCount > currFishCount;
-              
-              modified.forEach(target => {
-                if ((heron.hunted || 0) < 50 && distance(heron, target) < 120) {
-                  // If balanced: hunt both species equally to reduce total (85% chance each)
-                  if (isBalanced) {
-                    if (target.type === 'frog' && Math.random() < 0.85) {
-                      heronEaten.add(target.id);
-                      heron.hunted = (heron.hunted || 0) + 1;
-                    }
-                    else if (target.type === 'fish' && Math.random() < 0.85) {
-                      heronEaten.add(target.id);
-                      heron.hunted = (heron.hunted || 0) + 1;
-                    }
-                  }
-                  // If imbalanced: hunt only the overpopulated species (90% chance)
-                  else {
-                    if (targetFrogs && target.type === 'frog' && Math.random() < 0.90) {
-                      heronEaten.add(target.id);
-                      heron.hunted = (heron.hunted || 0) + 1;
-                    }
-                    else if (!targetFrogs && target.type === 'fish' && Math.random() < 0.90) {
-                      heronEaten.add(target.id);
-                      heron.hunted = (heron.hunted || 0) + 1;
-                    }
-                  }
+            if (heron.type !== 'heron' || (heron.hunted || 0) >= 50) return;
+
+            const currFrogCount = modified.filter(c => c.type === 'frog' && !heronEaten.has(c.id)).length;
+            const currFishCount = modified.filter(c => c.type === 'fish' && !heronEaten.has(c.id)).length;
+            const frogRatio = currFrogCount / (currFrogCount + currFishCount || 1);
+            const isBalanced = frogRatio > 0.42 && frogRatio < 0.58;
+            const targetFrogs = currFrogCount > currFishCount;
+
+            modified.forEach(target => {
+              if ((heron.hunted || 0) >= 50 || distance(heron, target) > 40) return;
+              if (isBalanced) {
+                if ((target.type === 'frog' || target.type === 'fish') && Math.random() < 0.85) {
+                  heronEaten.add(target.id);
+                  heron.hunted = (heron.hunted || 0) + 1;
                 }
-              });
-            }
+              } else {
+                if (targetFrogs && target.type === 'frog' && Math.random() < 0.90) {
+                  heronEaten.add(target.id);
+                  heron.hunted = (heron.hunted || 0) + 1;
+                } else if (!targetFrogs && target.type === 'fish' && Math.random() < 0.90) {
+                  heronEaten.add(target.id);
+                  heron.hunted = (heron.hunted || 0) + 1;
+                }
+              }
+            });
           });
-          
-          // Remove herons that have reached their quota
-          modified = modified.filter(c => !(c.type === 'heron' && (c.hunted || 0) >= 50));
+
+          // Remove herons that hit quota or flew off screen
+          modified = modified.filter(c => {
+            if (c.type !== 'heron') return true;
+            if ((c.hunted || 0) >= 50) return false;
+            if (c.x < -100 || c.x > window.innerWidth + 100) return false;
+            return true;
+          });
           modified = modified.filter(c => !heronEaten.has(c.id));
 
           // HARD POPULATION CAP: Never exceed 550 total prey
@@ -572,48 +562,10 @@ function App() {
     }
     // ===== HERON BEHAVIOR =====
     else if (creature.type === 'heron') {
-      // Heron has two states: hunting (find and chase prey) or fleeing (leave screen)
-      if ((creature.hunted || 0) < 50) {
-        // HUNTING STATE: Actively chase prey
-        const prey = allCreatures.filter(c => 
-          (c.type === 'frog' || c.type === 'fish') && distance(creature, c) < 150
-        );
-
-        if (prey.length > 0) {
-          // Chase nearest prey
-          const target = prey.reduce((closest, p) => 
-            distance(creature, p) < distance(creature, closest) ? p : closest
-          );
-          
-          const dx = target.x - creature.x;
-          const dy = target.y - creature.y;
-          const len = Math.sqrt(dx * dx + dy * dy) || 1;
-          
-          const huntSpeed = 2.5;
-          dirX = (dx / len) * huntSpeed;
-          dirY = (dy / len) * huntSpeed;
-          currentSpeed = huntSpeed;
-        } else {
-          // No prey nearby - patrol slowly
-          currentSpeed = 1;
-          dirX = (Math.random() - 0.5) * 0.5;
-          dirY = (Math.random() - 0.5) * 0.5;
-        }
-      } else {
-        // FLEEING STATE: Hunt quota reached, fly off screen
-        const fleeSpeed = 4;
-        // Pick a screen edge to flee toward (pick nearest)
-        const CANVAS_W = window.innerWidth;
-        const CANVAS_H = window.innerHeight;
-        
-        if (creature.x < CANVAS_W / 2) {
-          dirX = -fleeSpeed; // Fly left
-        } else {
-          dirX = fleeSpeed; // Fly right
-        }
-        dirY = (Math.random() - 0.5) * fleeSpeed; // Slight upward bias
-        currentSpeed = fleeSpeed;
-      }
+      // Just maintain fixed direction set at spawn - no steering
+      dirX = creature.vx;
+      dirY = 0;
+      currentSpeed = Math.abs(creature.vx);
     }
     // ===== FROG, FISH, AND BABY CREATURES BEHAVIOR =====
     else if (creature.type === 'frog' || creature.type === 'fish' || creature.type === 'babyFish' || creature.type === 'babyMosquito') {
