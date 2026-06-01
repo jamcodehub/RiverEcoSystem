@@ -141,15 +141,15 @@ function App() {
             return creature;
           }).filter(Boolean);
 
-          // Breeding system - Fish breed to make baby fish (20% chance)
+          // Breeding system - Fish breed to make baby fish (40% chance)
           const fishCount = modified.filter(c => c.type === 'fish').length;
-          if (Math.random() < 0.0022 && fishCount > 1) {
+          if (Math.random() < 0.008 && fishCount > 1) {
             const fishes = modified.filter(c => c.type === 'fish' && (c.breedingCooldown || 0) <= 0);
             const fishBreedingIds = new Set();
             for (let i = 0; i < fishes.length; i++) {
               for (let j = i + 1; j < fishes.length; j++) {
                 if (distance(fishes[i], fishes[j]) < 80) {
-                  if (Math.random() < 0.36) {
+                  if (Math.random() < 0.40) {
                     newCreatures.push({
                       id: Math.random(),
                       type: 'babyFish',
@@ -171,20 +171,20 @@ function App() {
             // Apply breeding cooldown to modified array
             modified = modified.map(c => 
               c.type === 'fish' && fishBreedingIds.has(c.id)
-                ? { ...c, breedingCooldown: 1800 }
+                ? { ...c, breedingCooldown: 250 }
                 : c
             );
           }
 
-          // Breeding system - Frogs breed to make tadpoles (20% chance)
+          // Breeding system - Frogs breed to make tadpoles (40% chance)
           const frogCount = modified.filter(c => c.type === 'frog').length;
-          if (Math.random() < 0.0022 && frogCount > 1) {
+          if (Math.random() < 0.008 && frogCount > 1) {
             const frogs = modified.filter(c => c.type === 'frog' && (c.breedingCooldown || 0) <= 0);
             const frogBreedingIds = new Set();
             for (let i = 0; i < frogs.length; i++) {
               for (let j = i + 1; j < frogs.length; j++) {
                 if (distance(frogs[i], frogs[j]) < 80) {
-                  if (Math.random() < 0.30) {
+                  if (Math.random() < 0.40) {
                     newCreatures.push({
                       id: Math.random(),
                       type: 'tadpole',
@@ -206,20 +206,20 @@ function App() {
             // Apply breeding cooldown to modified array
             modified = modified.map(c => 
               c.type === 'frog' && frogBreedingIds.has(c.id)
-                ? { ...c, breedingCooldown: 1800 }
+                ? { ...c, breedingCooldown: 250 }
                 : c
             );
           }
 
-          // Breeding system - Mosquito fish breed to make baby mosquitoes (30% chance) :)
+          // Breeding system - Mosquito fish breed to make baby mosquitoes (48% chance - 20% more than frogs/fish)
           const mosquitoCount = modified.filter(c => c.type === 'mosquito').length;
-          if (Math.random() < 0.0033 && mosquitoCount > 1) {
+          if (Math.random() < 0.0096 && mosquitoCount > 1) {
             const mosquitoes = modified.filter(c => c.type === 'mosquito' && (c.breedingCooldown || 0) <= 0);
             const mosquitoBreedingIds = new Set();
             for (let i = 0; i < mosquitoes.length; i++) {
               for (let j = i + 1; j < mosquitoes.length; j++) {
                 if (distance(mosquitoes[i], mosquitoes[j]) < 80) {
-                  if (Math.random() < 0.54) {
+                  if (Math.random() < 0.48) {
                     newCreatures.push({
                       id: Math.random(),
                       type: 'babyMosquito',
@@ -241,7 +241,7 @@ function App() {
             // Apply breeding cooldown to modified array
             modified = modified.map(c => 
               c.type === 'mosquito' && mosquitoBreedingIds.has(c.id)
-                ? { ...c, breedingCooldown: 1300 }
+                ? { ...c, breedingCooldown: 100 }
                 : c
             );
           }
@@ -368,7 +368,7 @@ function App() {
               return {
                 ...updated,
                 age: updated.age + 1,
-                alive: updated.age < 3000,
+                alive: true,
               };
             })
             .filter(r => r.alive);
