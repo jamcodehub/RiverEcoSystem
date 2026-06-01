@@ -572,19 +572,48 @@ function App() {
     }
     // ===== HERON BEHAVIOR =====
     else if (creature.type === 'heron') {
-      // Simple linear movement: herons swoop left-to-right or right-to-left
-      // They just fly straight and eat what they encounter
-      const speed = 3;
-      const CANVAS_W = window.innerWidth;
-      
-      // If no direction set, pick left or right
-      if (!creature.heronDirection) {
-        creature.heronDirection = Math.random() < 0.5 ? 1 : -1; // 1 = right, -1 = left
+      // Heron has two states: hunting (find and chase prey) or fleeing (leave screen)
+      if ((creature.hunted || 0) < 50) {
+        // HUNTING STATE: Actively chase prey
+        const prey = allCreatures.filter(c => 
+          (c.type === 'frog' || c.type === 'fish') && distance(creature, c) < 150
+        );
+
+        if (prey.length > 0) {
+          // Chase nearest prey
+          const target = prey.reduce((closest, p) => 
+            distance(creature, p) < distance(creature, closest) ? p : closest
+          );
+          
+          const dx = target.x - creature.x;
+          const dy = target.y - creature.y;
+          const len = Math.sqrt(dx * dx + dy * dy) || 1;
+          
+          const huntSpeed = 2.5;
+          dirX = (dx / len) * huntSpeed;
+          dirY = (dy / len) * huntSpeed;
+          currentSpeed = huntSpeed;
+        } else {
+          // No prey nearby - patrol slowly
+          currentSpeed = 1;
+          dirX = (Math.random() - 0.5) * 0.5;
+          dirY = (Math.random() - 0.5) * 0.5;
+        }
+      } else {
+        // FLEEING STATE: Hunt quota reached, fly off screen
+        const fleeSpeed = 4;
+        // Pick a screen edge to flee toward (pick nearest)
+        const CANVAS_W = window.innerWidth;
+        const CANVAS_H = window.innerHeight;
+        
+        if (creature.x < CANVAS_W / 2) {
+          dirX = -fleeSpeed; // Fly left
+        } else {
+          dirX = fleeSpeed; // Fly right
+        }
+        dirY = (Math.random() - 0.5) * fleeSpeed; // Slight upward bias
+        currentSpeed = fleeSpeed;
       }
-      
-      dirX = creature.heronDirection * speed;
-      dirY = 0; // Straight horizontal movement
-      currentSpeed = speed;
     }
     // ===== FROG, FISH, AND BABY CREATURES BEHAVIOR =====
     else if (creature.type === 'frog' || creature.type === 'fish' || creature.type === 'babyFish' || creature.type === 'babyMosquito') {
