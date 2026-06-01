@@ -586,7 +586,6 @@ function App() {
       dirY = 0; // Straight horizontal movement
       currentSpeed = speed;
     }
-    }
     // ===== FROG, FISH, AND BABY CREATURES BEHAVIOR =====
     else if (creature.type === 'frog' || creature.type === 'fish' || creature.type === 'babyFish' || creature.type === 'babyMosquito') {
       // Normal wandering - only adults hunt/breed visually
