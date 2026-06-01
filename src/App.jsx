@@ -251,8 +251,10 @@ function App() {
           }
 
           // Heron predation - population control for frogs and fish
-          // Herons spawn at population thresholds and eat a fixed quota then disappear
-          const preyCount = modified.filter(c => c.type === 'frog' || c.type === 'fish').length;
+          // Herons spawn at population thresholds and eat to equilibriate species
+          const frogCount = modified.filter(c => c.type === 'frog').length;
+          const fishCount = modified.filter(c => c.type === 'fish').length;
+          const preyCount = frogCount + fishCount;
           const heronCount = modified.filter(c => c.type === 'heron').length;
           
           // Determine max herons based on prey population
@@ -277,19 +279,34 @@ function App() {
             });
           }
           
-          // Heron hunting - eat frogs and fish (50 per heron quota)
+          // Heron hunting - eat frogs and fish to equilibriate populations
           const heronEaten = new Set();
           modified.forEach(heron => {
             if (heron.type === 'heron' && (heron.hunted || 0) < 50) {
+              // Determine which species is more abundant
+              const currentFrogCount = modified.filter(c => c.type === 'frog').length;
+              const currentFishCount = modified.filter(c => c.type === 'fish').length;
+              const frogsMore = currentFrogCount > currentFishCount;
+              
               modified.forEach(target => {
                 if ((heron.hunted || 0) < 50 && distance(heron, target) < 120) {
-                  // Frogs: 90% chance to be caught
-                  if (target.type === 'frog' && Math.random() < 0.90) {
+                  // If frogs are more abundant, prioritize eating frogs (95% chance)
+                  // If fish are more abundant, prioritize eating fish (95% chance)
+                  if (frogsMore && target.type === 'frog' && Math.random() < 0.95) {
                     heronEaten.add(target.id);
                     heron.hunted = (heron.hunted || 0) + 1;
                   }
-                  // Fish: 90% chance to be caught
-                  else if (target.type === 'fish' && Math.random() < 0.90) {
+                  // If fish are more abundant, prioritize eating fish (95% chance)
+                  else if (!frogsMore && target.type === 'fish' && Math.random() < 0.95) {
+                    heronEaten.add(target.id);
+                    heron.hunted = (heron.hunted || 0) + 1;
+                  }
+                  // Fallback: eat the other species if quota not met (30% chance)
+                  else if (frogsMore && target.type === 'fish' && Math.random() < 0.30) {
+                    heronEaten.add(target.id);
+                    heron.hunted = (heron.hunted || 0) + 1;
+                  }
+                  else if (!frogsMore && target.type === 'frog' && Math.random() < 0.30) {
                     heronEaten.add(target.id);
                     heron.hunted = (heron.hunted || 0) + 1;
                   }
