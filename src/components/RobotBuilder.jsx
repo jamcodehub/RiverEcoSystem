@@ -130,13 +130,22 @@ const RobotBuilder = ({ onDeploy, onClose, selectedCode, setSelectedCode }) => {
     }
   };
 
-  const handleAddChildBlock = (parentIndex, block) => {
+  const handleAddChildBlock = (containerLocator, block) => {
     if (activeRobot) {
       const updated = [...activeRobot.code];
-      if (!updated[parentIndex].children) {
-        updated[parentIndex].children = [];
+      let container;
+      
+      // Find the container based on its locator path
+      if (containerLocator.isTopLevel) {
+        container = updated[containerLocator.index];
+      } else {
+        container = updated[containerLocator.parentIndex].children[containerLocator.childIndex];
       }
-      updated[parentIndex].children.push({ ...block, children: [] });
+      
+      if (!container.children) {
+        container.children = [];
+      }
+      container.children.push({ ...block, children: [] });
       updateRobotCode(updated);
     }
   };
@@ -190,28 +199,32 @@ const RobotBuilder = ({ onDeploy, onClose, selectedCode, setSelectedCode }) => {
     e.currentTarget.style.borderColor = 'transparent';
     e.currentTarget.style.backgroundColor = 'transparent';
     if (draggedBlock) {
-      const rect = e.currentTarget.getBoundingClientRect();
-      const x = e.clientX - rect.left;
-      const y = e.clientY - rect.top;
-      handleAddBlock(draggedBlock, x, y);
+      // Only add if it's from the library (no originalIndex)
+      // Existing blocks are handled by onDragEnd for moving
+      if (draggedBlock.originalIndex === undefined) {
+        const rect = e.currentTarget.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+        handleAddBlock(draggedBlock, x, y);
+      }
       setDraggedBlock(null);
     }
   };
 
-  const handleDropOnContainer = (e, parentIndex) => {
+  const handleDropOnContainer = (e, containerLocator) => {
     e.preventDefault();
     e.stopPropagation();
     e.currentTarget.style.borderColor = 'transparent';
     e.currentTarget.style.backgroundColor = 'transparent';
     if (draggedBlock && activeRobot) {
       // Prevent adding a block to its own children (avoid duplication and infinite nesting)
-      if (draggedBlock.originalIndex !== undefined && draggedBlock.originalIndex === parentIndex) {
+      if (draggedBlock.originalIndex !== undefined && draggedBlock.originalIndex === containerLocator.index) {
         setDraggedBlock(null);
         return;
       }
       // Only add if it's from the library (no originalIndex) or from a different block
       if (draggedBlock.originalIndex === undefined) {
-        handleAddChildBlock(parentIndex, draggedBlock);
+        handleAddChildBlock(containerLocator, draggedBlock);
       }
       setDraggedBlock(null);
     }
@@ -292,7 +305,12 @@ const RobotBuilder = ({ onDeploy, onClose, selectedCode, setSelectedCode }) => {
               className="children-list"
               onDragOver={handleContainerDragOver}
               onDragLeave={handleContainerDragLeave}
-              onDrop={(e) => handleDropOnContainer(e, parentIndex !== null ? parentIndex : index)}
+              onDrop={(e) => {
+                const containerLocator = isTopLevel
+                  ? { isTopLevel: true, index }
+                  : { isTopLevel: false, parentIndex, childIndex };
+                handleDropOnContainer(e, containerLocator);
+              }}
             >
               {block.children && block.children.length > 0 && (
                 block.children.map((child, cIdx) => renderCodeBlock(child, cIdx + 1, parentIndex !== null ? parentIndex : index, cIdx))
