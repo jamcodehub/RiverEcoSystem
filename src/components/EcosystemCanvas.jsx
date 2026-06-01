@@ -173,6 +173,32 @@ const EcosystemCanvas = ({ creatures, robots }) => {
         ctx.beginPath();
         ctx.arc(x + (creature.vx > 0 ? 4 : -4), y - 1, 1.5, 0, Math.PI * 2);
         ctx.fill();
+      } else if (creature.type === 'heron') {
+        // Heron - tall hunting bird
+        ctx.fillStyle = '#708090'; // Gray-blue
+        // Body
+        ctx.beginPath();
+        ctx.ellipse(x, y + 4, 7, 10, 0, 0, Math.PI * 2);
+        ctx.fill();
+        // Neck (tall and thin)
+        ctx.strokeStyle = '#708090';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(x, y - 6);
+        ctx.lineTo(x, y + 4);
+        ctx.stroke();
+        // Head
+        ctx.fillStyle = '#4a5f7f';
+        ctx.beginPath();
+        ctx.arc(x, y - 8, 2, 0, Math.PI * 2);
+        ctx.fill();
+        // Beak
+        ctx.strokeStyle = '#2c3e50';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(x + 2, y - 8);
+        ctx.lineTo(x + 6, y - 7);
+        ctx.stroke();
       }
 
       // Draw detection radius for creatures fleeing

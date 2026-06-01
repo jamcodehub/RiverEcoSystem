@@ -246,6 +246,48 @@ function App() {
             );
           }
 
+          // Heron predation - population control for frogs and fish
+          // Spawn herons when prey population gets too high
+          const preyCount = modified.filter(c => c.type === 'frog' || c.type === 'fish').length;
+          const heronCount = modified.filter(c => c.type === 'heron').length;
+          const maxHerons = Math.max(1, Math.floor(preyCount / 100)); // 1 heron per 100 prey, min 1
+          
+          if (preyCount > 500 && heronCount < maxHerons) {
+            // Spawn a new heron
+            newCreatures.push({
+              id: Math.random(),
+              type: 'heron',
+              x: Math.random() * (window.innerWidth - 100) + 50,
+              y: 60 + Math.random() * (window.innerHeight - 120),
+              vx: 0,
+              vy: 0,
+              age: 0,
+              alive: true,
+              lifespan: 80000, // Longer lifespan, hunts naturally
+            });
+          }
+          
+          // Heron hunting - eat frogs and fish
+          const heronEaten = new Set();
+          modified.forEach(heron => {
+            if (heron.type === 'heron') {
+              modified.forEach(target => {
+                if (distance(heron, target) < 120) {
+                  // Frogs: 90% chance to be caught
+                  if (target.type === 'frog' && Math.random() < 0.90) {
+                    heronEaten.add(target.id);
+                  }
+                  // Fish: 90% chance to be caught
+                  else if (target.type === 'fish' && Math.random() < 0.90) {
+                    heronEaten.add(target.id);
+                  }
+                }
+              });
+            }
+          });
+          
+          modified = modified.filter(c => !heronEaten.has(c.id));
+
           return [...modified, ...newCreatures];
         });
 
@@ -410,6 +452,35 @@ function App() {
         currentSpeed = 1.5;
       }
     }
+    // ===== HERON BEHAVIOR =====
+    else if (creature.type === 'heron') {
+      const prey = allCreatures.filter(c => 
+        (c.type === 'frog' || c.type === 'fish') && distance(creature, c) < 200
+      );
+
+      if (prey.length > 0) {
+        // Hunt nearest prey
+        const target = prey.reduce((closest, p) => 
+          distance(creature, p) < distance(creature, closest) ? p : closest
+        );
+        
+        const dist = distance(creature, target);
+        currentSpeed = 2 + (1 - Math.min(dist / 200, 1)) * 2; // 2-4 speed
+        
+        const dx = target.x - creature.x;
+        const dy = target.y - creature.y;
+        const len = Math.sqrt(dx * dx + dy * dy) || 1;
+        dirX = (dx / len) * currentSpeed;
+        dirY = (dy / len) * currentSpeed;
+      } else {
+        // No prey - patrol slowly
+        if (Math.random() < 0.01) {
+          dirX = (Math.random() - 0.5) * 1.5;
+          dirY = (Math.random() - 0.5) * 1.5;
+        }
+        currentSpeed = 1;
+      }
+    }
     // ===== FROG, FISH, AND BABY CREATURES BEHAVIOR =====
     else if (creature.type === 'frog' || creature.type === 'fish' || creature.type === 'babyFish' || creature.type === 'babyMosquito') {
       // Normal wandering - only adults hunt/breed visually
@@ -457,8 +528,8 @@ function App() {
 
   const resetEcosystem = () => {
     const newCreatures = [];
-    // Add frogs (20)
-    for (let i = 0; i < 20; i++) {
+    // Add frogs (15)
+    for (let i = 0; i < 15; i++) {
       newCreatures.push({
         id: Math.random(),
         type: 'frog',
@@ -552,6 +623,7 @@ function App() {
     babyFish: creatures.filter(c => c.type === 'babyFish').length,
     babyMosquito: creatures.filter(c => c.type === 'babyMosquito').length,
     mosquito: creatures.filter(c => c.type === 'mosquito').length,
+    heron: creatures.filter(c => c.type === 'heron').length,
     robots: robots.length,
   };
 

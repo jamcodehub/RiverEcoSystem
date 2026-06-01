@@ -158,6 +158,7 @@ body {
 .fish-stat .stat-value { color: #3498db; }
 .egg-stat .stat-value { color: #f4d03f; }
 .mosquito-stat .stat-value { color: #e74c3c; }
+.heron-stat .stat-value { color: #708090; }
 .robot-stat .stat-value { color: #f39c12; }
 .total-stat .stat-value { color: #9b59b6; }
 
