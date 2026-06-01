@@ -684,6 +684,19 @@ body {
   animation: slideIn 0.2s;
 }
 
+/* Nested blocks should have slightly different styling */
+.children-list .code-block-wrapper .code-block-item {
+  background: #1a2a3e;
+  border: 1px solid #2a3a4e;
+  padding: 8px 10px;
+  font-size: 11px;
+}
+
+.children-list .code-block-wrapper .block-index {
+  font-size: 10px;
+  padding: 1px 4px;
+}
+
 @keyframes slideIn {
   from {
     opacity: 0;
@@ -986,8 +999,16 @@ body {
 /* ============ Nested Blocks & Containers ============ */
 .code-block-wrapper {
   margin-bottom: 8px;
-  position: absolute;
-  /* left/top set inline by React for top-level blocks */
+}
+
+/* Top-level blocks get absolute positioning from inline styles in React */
+/* Nested blocks in children-list should be relative and indented */
+.children-list .code-block-wrapper {
+  position: relative !important;
+  left: 0 !important;
+  top: 0 !important;
+  margin-left: 8px;
+  margin-bottom: 8px;
 }
 
 .container-block {
@@ -995,31 +1016,35 @@ body {
   border: 2px solid #ffe66d;
   border-radius: 8px;
   padding-bottom: 0;
+  position: relative;
 }
 
 .container-body {
-  background: rgba(0, 0, 0, 0.3);
-  border-top: 1px solid #ffe66d;
-  border-radius: 0 0 6px 6px;
-  padding: 12px 8px;
+  background: rgba(0, 0, 0, 0.2);
+  border-top: 2px solid #ffe66d;
+  border-left: 3px solid #ffe66d;
+  border-bottom: 2px solid #ffe66d;
+  border-right: 0;
+  border-radius: 0 0 6px 0;
+  padding: 16px 12px 12px 20px;
   margin-top: 0;
 }
 
 .children-list {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  min-height: 60px;
+  gap: 8px;
+  min-height: 50px;
   margin-bottom: 0;
-  padding: 12px 8px;
-  border: 2px dashed rgba(78, 205, 196, 0.3);
-  border-radius: 4px;
+  padding: 12px 0;
+  border: none;
+  border-radius: 0;
   transition: all 0.2s;
+  position: relative;
 }
 
 .children-list:hover {
-  border-color: rgba(78, 205, 196, 0.6);
-  background: rgba(78, 205, 196, 0.05);
+  background: rgba(78, 205, 196, 0.02);
 }
 
 
