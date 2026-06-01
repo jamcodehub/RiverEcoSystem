@@ -251,17 +251,40 @@ function App() {
           }
 
           // Heron predation - population control for frogs and fish
-          // Herons spawn at population thresholds and eat to equilibriate species
+          // Herons maintain equilibrium AND enforce population cap (300-550 total)
           const heronFrogCount = modified.filter(c => c.type === 'frog').length;
           const heronFishCount = modified.filter(c => c.type === 'fish').length;
-          const preyCount = heronFrogCount + heronFishCount;
+          const totalPrey = heronFrogCount + heronFishCount;
+          const targetPerSpecies = Math.floor(totalPrey / 2); // Equilibrium target
           const heronCount = modified.filter(c => c.type === 'heron').length;
           
-          // Determine max herons based on prey population
+          // Determine if we need herons based on:
+          // 1. Population cap (keep total 300-550)
+          // 2. Species balance (keep frogs ≈ fish)
           let maxHerons = 0;
-          if (preyCount >= 500) maxHerons = 2;
-          else if (preyCount >= 400) maxHerons = 2;
-          else if (preyCount >= 300) maxHerons = 1;
+          
+          if (totalPrey >= 300) {
+            const popAboveTarget = totalPrey > 550; // Population cap check
+            const imbalanced = Math.abs(heronFrogCount - heronFishCount) > 20; // Species balance check
+            
+            if (popAboveTarget || imbalanced) {
+              // Scale herons based on how far off we are
+              let heronNeeded = 0;
+              
+              // Account for total population excess
+              if (popAboveTarget) {
+                heronNeeded = Math.ceil((totalPrey - 550) / 50); // 1 heron per 50 over cap
+              }
+              
+              // Account for species imbalance
+              if (imbalanced) {
+                const imbalanceAmount = Math.abs(heronFrogCount - heronFishCount);
+                heronNeeded = Math.max(heronNeeded, Math.ceil(imbalanceAmount / 75));
+              }
+              
+              maxHerons = Math.min(heronNeeded, 4); // Cap at 4 herons
+            }
+          }
           
           // Spawn new herons if needed
           if (heronCount < maxHerons) {
@@ -279,36 +302,45 @@ function App() {
             });
           }
           
-          // Heron hunting - eat frogs and fish to equilibriate populations
+          // Heron hunting - eat only the overpopulated species to equilibriate
+          // Or hunt both equally if balanced but over-capacity
           const heronEaten = new Set();
           modified.forEach(heron => {
             if (heron.type === 'heron' && (heron.hunted || 0) < 50) {
               // Determine which species is more abundant
-              const currFrogCount = modified.filter(c => c.type === 'frog').length;
-              const currFishCount = modified.filter(c => c.type === 'fish').length;
-              const frogsMore = currFrogCount > currFishCount;
+              const currFrogCount = modified.filter(c => c.type === 'frog' && !heronEaten.has(c.id)).length;
+              const currFishCount = modified.filter(c => c.type === 'fish' && !heronEaten.has(c.id)).length;
+              
+              // Check if populations are roughly balanced (within 15% tolerance)
+              const frogRatio = currFrogCount / (currFrogCount + currFishCount);
+              const isBalanced = frogRatio > 0.42 && frogRatio < 0.58; // Roughly 40-60 split
+              
+              // Decide hunting strategy
+              const targetFrogs = currFrogCount > currFishCount;
               
               modified.forEach(target => {
                 if ((heron.hunted || 0) < 50 && distance(heron, target) < 120) {
-                  // If frogs are more abundant, prioritize eating frogs (95% chance)
-                  // If fish are more abundant, prioritize eating fish (95% chance)
-                  if (frogsMore && target.type === 'frog' && Math.random() < 0.95) {
-                    heronEaten.add(target.id);
-                    heron.hunted = (heron.hunted || 0) + 1;
+                  // If balanced: hunt both species equally to reduce total (85% chance each)
+                  if (isBalanced) {
+                    if (target.type === 'frog' && Math.random() < 0.85) {
+                      heronEaten.add(target.id);
+                      heron.hunted = (heron.hunted || 0) + 1;
+                    }
+                    else if (target.type === 'fish' && Math.random() < 0.85) {
+                      heronEaten.add(target.id);
+                      heron.hunted = (heron.hunted || 0) + 1;
+                    }
                   }
-                  // If fish are more abundant, prioritize eating fish (95% chance)
-                  else if (!frogsMore && target.type === 'fish' && Math.random() < 0.95) {
-                    heronEaten.add(target.id);
-                    heron.hunted = (heron.hunted || 0) + 1;
-                  }
-                  // Fallback: eat the other species if quota not met (30% chance)
-                  else if (frogsMore && target.type === 'fish' && Math.random() < 0.30) {
-                    heronEaten.add(target.id);
-                    heron.hunted = (heron.hunted || 0) + 1;
-                  }
-                  else if (!frogsMore && target.type === 'frog' && Math.random() < 0.30) {
-                    heronEaten.add(target.id);
-                    heron.hunted = (heron.hunted || 0) + 1;
+                  // If imbalanced: hunt only the overpopulated species (90% chance)
+                  else {
+                    if (targetFrogs && target.type === 'frog' && Math.random() < 0.90) {
+                      heronEaten.add(target.id);
+                      heron.hunted = (heron.hunted || 0) + 1;
+                    }
+                    else if (!targetFrogs && target.type === 'fish' && Math.random() < 0.90) {
+                      heronEaten.add(target.id);
+                      heron.hunted = (heron.hunted || 0) + 1;
+                    }
                   }
                 }
               });
@@ -319,7 +351,43 @@ function App() {
           modified = modified.filter(c => !(c.type === 'heron' && (c.hunted || 0) >= 50));
           modified = modified.filter(c => !heronEaten.has(c.id));
 
-          return [...modified, ...newCreatures];
+          // HARD POPULATION CAP: Never exceed 550 total prey
+          let allCreatures = [...modified, ...newCreatures];
+          const maxPopulation = 550;
+          
+          if (allCreatures.length > maxPopulation) {
+            // Count current populations
+            const frogs = allCreatures.filter(c => c.type === 'frog').length;
+            const fish = allCreatures.filter(c => c.type === 'fish').length;
+            const excessPopulation = allCreatures.length - maxPopulation;
+            
+            // Remove excess from the more abundant species to maintain balance
+            if (frogs > fish) {
+              // Remove excess frogs
+              const frogsToRemove = Math.min(frogs, excessPopulation);
+              let removed = 0;
+              allCreatures = allCreatures.filter(c => {
+                if (c.type === 'frog' && removed < frogsToRemove) {
+                  removed++;
+                  return false; // Remove this frog
+                }
+                return true;
+              });
+            } else {
+              // Remove excess fish
+              const fishToRemove = Math.min(fish, excessPopulation);
+              let removed = 0;
+              allCreatures = allCreatures.filter(c => {
+                if (c.type === 'fish' && removed < fishToRemove) {
+                  removed++;
+                  return false; // Remove this fish
+                }
+                return true;
+              });
+            }
+          }
+
+          return allCreatures;
         });
 
         // Update robots - aggressive hunting behavior
