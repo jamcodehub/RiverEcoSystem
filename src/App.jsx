@@ -114,7 +114,7 @@ function App() {
                 ...creature,
                 type: 'frog',
                 id: Math.random(),
-                lifespan: 36000,
+                lifespan: 38000,
               });
               return null;
             }
@@ -124,7 +124,7 @@ function App() {
                 ...creature,
                 type: 'fish',
                 id: Math.random(),
-                lifespan: 36000,
+                lifespan: 38000,
               });
               return null;
             }
@@ -134,7 +134,7 @@ function App() {
                 ...creature,
                 type: 'mosquito',
                 id: Math.random(),
-                lifespan: 36000,
+                lifespan: 38000,
               });
               return null;
             }
@@ -159,7 +159,7 @@ function App() {
                       vy: (Math.random() - 0.5) * 1,
                       age: 0,
                       alive: true,
-                      lifespan: 18000,
+                      lifespan: 38000,
                       breedingCooldown: 0,
                     });
                     fishBreedingIds.add(fishes[i].id);
@@ -194,7 +194,7 @@ function App() {
                       vy: (Math.random() - 0.5) * 1,
                       age: 0,
                       alive: true,
-                      lifespan: 18000,
+                      lifespan: 38000,
                       breedingCooldown: 0,
                     });
                     frogBreedingIds.add(frogs[i].id);
@@ -229,7 +229,7 @@ function App() {
                       vy: (Math.random() - 0.5) * 1,
                       age: 0,
                       alive: true,
-                      lifespan: 18000,
+                      lifespan: 38000,
                       breedingCooldown: 0,
                     });
                     mosquitoBreedingIds.add(mosquitoes[i].id);
@@ -468,7 +468,7 @@ function App() {
         vy: (Math.random() - 0.5) * 1.5,
         age: 0,
         alive: true,
-        lifespan: 36000,
+        lifespan: 38000,
         breedingCooldown: 0,
       });
     }
@@ -483,7 +483,7 @@ function App() {
         vy: (Math.random() - 0.5) * 1.5,
         age: 0,
         alive: true,
-        lifespan: 36000,
+        lifespan: 38000,
         breedingCooldown: 0,
       });
     }
@@ -498,7 +498,7 @@ function App() {
         vy: (Math.random() - 0.5) * 1.5,
         age: 0,
         alive: true,
-        lifespan: 36000,
+        lifespan: 38000,
         breedingCooldown: 0,
       });
     }
@@ -513,7 +513,7 @@ function App() {
         vy: (Math.random() - 0.5) * 1.5,
         age: 0,
         alive: true,
-        lifespan: 36000,
+        lifespan: 38000,
         breedingCooldown: 0,
       });
     }
