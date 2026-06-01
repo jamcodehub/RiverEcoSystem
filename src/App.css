@@ -74,6 +74,7 @@ body {
 
 .bottom-controls {
   pointer-events: auto;
+  background: rgba(15, 30, 15, 0.224);
   display: flex;
   justify-content: center;
   padding: 8px;
@@ -81,7 +82,7 @@ body {
 
 /* ============ Stats Panel ============ */
 .stats-panel {
-  background: transparent;
+  background: rgba(15, 30, 15, 0.224);
   padding: 0;
   border: none;
   box-shadow: none;
