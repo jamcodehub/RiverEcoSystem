@@ -285,8 +285,9 @@ function App() {
               age: 0,
               alive: true,
               hunted: 0,
+              lifespan: 999999, 
             });
-          }
+          } 
 
           // Heron eating - consume prey within 80px as it flies through
           const heronEaten = new Set();
