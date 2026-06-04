@@ -163,62 +163,51 @@ const EcosystemCanvas = ({ creatures, robots }) => {
         ctx.arc(x + (creature.vx > 0 ? 4 : -4), y - 1, 1.5, 0, Math.PI * 2);
         ctx.fill();
       } else if (creature.type === 'heron') {
-        // Heron in flight - horizontal orientation, large and visible
-        const dir = creature.vx >= 0 ? 1 : -1; // 1 = flying right, -1 = flying left
-        ctx.save();
-        ctx.translate(x, y);
-        if (dir === -1) ctx.scale(-1, 1); // Flip for left-flying
+        const facingRight = creature.vx >= 0;
+        const d = facingRight ? 1 : -1;
 
-        // Body - large horizontal ellipse (fish body is 8x5, heron is ~20x10)
+        // Body - large ellipse (~2x fish size)
         ctx.fillStyle = '#607b8b';
         ctx.beginPath();
-        ctx.ellipse(0, 0, 20, 8, 0, 0, Math.PI * 2);
+        ctx.ellipse(x, y, 20, 8, 0, 0, Math.PI * 2);
         ctx.fill();
 
-        // Wings - swept back V shape
+        // Wings
         ctx.fillStyle = '#4a6275';
         ctx.beginPath();
-        ctx.moveTo(-5, 0);
-        ctx.lineTo(-22, -18); // Left wingtip
-        ctx.lineTo(-8, -4);
+        ctx.moveTo(x - d * 5, y);
+        ctx.lineTo(x - d * 22, y - 18);
+        ctx.lineTo(x - d * 8, y - 4);
         ctx.closePath();
         ctx.fill();
         ctx.beginPath();
-        ctx.moveTo(-5, 0);
-        ctx.lineTo(-22, 18); // Right wingtip (below)
-        ctx.lineTo(-8, 4);
+        ctx.moveTo(x - d * 5, y);
+        ctx.lineTo(x - d * 22, y + 18);
+        ctx.lineTo(x - d * 8, y + 4);
         ctx.closePath();
         ctx.fill();
 
-        // Neck stretched forward
+        // Neck
         ctx.strokeStyle = '#607b8b';
         ctx.lineWidth = 4;
         ctx.beginPath();
-        ctx.moveTo(16, 0);
-        ctx.lineTo(26, -6);
+        ctx.moveTo(x + d * 16, y);
+        ctx.lineTo(x + d * 26, y - 6);
         ctx.stroke();
 
         // Head
         ctx.fillStyle = '#2c3e50';
         ctx.beginPath();
-        ctx.arc(28, -7, 5, 0, Math.PI * 2);
+        ctx.arc(x + d * 28, y - 7, 5, 0, Math.PI * 2);
         ctx.fill();
 
-        // Long beak
+        // Beak
         ctx.strokeStyle = '#e8c547';
         ctx.lineWidth = 2;
         ctx.beginPath();
-        ctx.moveTo(32, -7);
-        ctx.lineTo(44, -7);
+        ctx.moveTo(x + d * 32, y - 7);
+        ctx.lineTo(x + d * 44, y - 7);
         ctx.stroke();
-
-        // White eye
-        ctx.fillStyle = '#fff';
-        ctx.beginPath();
-        ctx.arc(30, -9, 1.5, 0, Math.PI * 2);
-        ctx.fill();
-
-        ctx.restore();
       }
 
       // Draw detection radius for creatures fleeing
