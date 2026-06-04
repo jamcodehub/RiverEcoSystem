@@ -687,7 +687,7 @@ function App() {
     };
     setRobots(prev => [...prev, newRobot]);
     setTelemetry(prev => ({ ...prev, totalRobotsDeployed: prev.totalRobotsDeployed + 1 }));
-    // Don't close modal or clear code - tabs persist for editing
+    setShowRobotModal(false); // Close modal so user can see deployed robot - tabs persist on reopen
   };
 
   const stats = {
