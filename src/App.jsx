@@ -580,14 +580,19 @@ function App() {
     updated.x = updated.x + dirX * speedMult;
     updated.y = updated.y + dirY * speedMult;
 
-    // Boundaries - wrap horizontally, constrain vertically to river
+// Boundaries - wrap horizontally (EXCEPT for herons), constrain vertically to river
     const CANVAS_W = window.innerWidth;
     const CANVAS_H = window.innerHeight;
     const RIVER_TOP = 50;
     const RIVER_BOTTOM = CANVAS_H - 50;
     
-    if (updated.x < 0) updated.x += CANVAS_W;
-    if (updated.x > CANVAS_W) updated.x -= CANVAS_W;
+    // Only wrap if the entity is NOT a heron
+    if (updated.type !== 'heron') {
+        if (updated.x < 0) updated.x += CANVAS_W;
+        if (updated.x > CANVAS_W) updated.x -= CANVAS_W;
+    }
+    
+    // Vertically constrain everything to the river
     if (updated.y < RIVER_TOP) updated.y = RIVER_TOP;
     if (updated.y > RIVER_BOTTOM) updated.y = RIVER_BOTTOM;
 
