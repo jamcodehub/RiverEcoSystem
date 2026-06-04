@@ -261,7 +261,7 @@ function App() {
           const heronCount = modified.filter(c => c.type === 'heron').length;
 
           let maxHerons = 0;
-          if (totalPrey >= 300) {
+          if (totalPrey >= 100) {
             const popAboveTarget = totalPrey > 550;
             const imbalanced = Math.abs(heronFrogCount - heronFishCount) > 20;
             if (popAboveTarget || imbalanced) {
