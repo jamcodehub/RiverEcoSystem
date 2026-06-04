@@ -219,6 +219,7 @@ const EcosystemCanvas = ({ creatures, robots }) => {
         ctx.fill();
 
         ctx.restore();
+      }
 
       // Draw detection radius for creatures fleeing
       const nearbyDanger = creatures.some(
