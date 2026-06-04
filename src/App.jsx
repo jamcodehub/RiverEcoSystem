@@ -586,10 +586,13 @@ function App() {
     const RIVER_TOP = 50;
     const RIVER_BOTTOM = CANVAS_H - 50;
     
-    // Only wrap if the entity is NOT a heron
+    // Handle horizontal movement safely
     if (updated.type !== 'heron') {
         if (updated.x < 0) updated.x += CANVAS_W;
         if (updated.x > CANVAS_W) updated.x -= CANVAS_W;
+    } else {
+        // Optional: Ensure herons traveling right don't get stuck due to math clamping 
+        // Just let them keep their velocity without any restriction
     }
     
     // Vertically constrain everything to the river
