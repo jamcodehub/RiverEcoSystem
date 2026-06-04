@@ -51,28 +51,17 @@ const EcosystemCanvas = ({ creatures, robots }) => {
 
     // Draw river gradient
     const gradient = ctx.createLinearGradient(0, 50, 0, height - 50);
-    gradient.addColorStop(0, '#a8d8ff');
-    gradient.addColorStop(0.5, '#7fc8ff');
-    gradient.addColorStop(1, '#a8d8ff');
+    gradient.addColorStop(0, '#cde8ff');
+    gradient.addColorStop(0.5, '#6db3e9');
+    gradient.addColorStop(1, '#8abde6');
     ctx.fillStyle = gradient;
     ctx.fillRect(0, 50, width, height - 100);
 
     // Draw river banks
-    ctx.fillStyle = '#4a7c3a';
+    ctx.fillStyle = '#7bb92e';
     ctx.fillRect(0, 0, width, 50); // Top bank
-    ctx.fillStyle = '#3d6b2f';
+    ctx.fillStyle = '#49b429';
     ctx.fillRect(0, height - 50, width, 50); // Bottom bank
-
-    // Draw solid water lines
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
-    ctx.lineWidth = 1;
-    for (let i = 0; i < 5; i++) {
-      const yOffset = 100 + i * 60;
-      ctx.beginPath();
-      ctx.moveTo(0, yOffset);
-      ctx.lineTo(width, yOffset);
-      ctx.stroke();
-    }
 
     // Draw plants/reeds on banks (static)
     ctx.fillStyle = '#5a8c4a';
@@ -84,7 +73,7 @@ const EcosystemCanvas = ({ creatures, robots }) => {
     });
 
     // Draw rocks - responsive positioning
-    ctx.fillStyle = '#8b8680';
+    ctx.fillStyle = '#aaa39a';
     const scale = canvasSize.width / 1000;
     const rockPositions = [
       { x: 150 * scale, y: 280 * scale, r: 12 },
@@ -173,6 +162,52 @@ const EcosystemCanvas = ({ creatures, robots }) => {
         ctx.beginPath();
         ctx.arc(x + (creature.vx > 0 ? 4 : -4), y - 1, 1.5, 0, Math.PI * 2);
         ctx.fill();
+      } else if (creature.type === 'heron') {
+        const facingRight = creature.vx >= 0;
+        const d = facingRight ? 1 : -1;
+
+        // Body - large ellipse (~2x fish size)
+        ctx.fillStyle = '#607b8b';
+        ctx.beginPath();
+        ctx.ellipse(x, y, 20, 8, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Wings
+        ctx.fillStyle = '#4a6275';
+        ctx.beginPath();
+        ctx.moveTo(x - d * 5, y);
+        ctx.lineTo(x - d * 22, y - 18);
+        ctx.lineTo(x - d * 8, y - 4);
+        ctx.closePath();
+        ctx.fill();
+        ctx.beginPath();
+        ctx.moveTo(x - d * 5, y);
+        ctx.lineTo(x - d * 22, y + 18);
+        ctx.lineTo(x - d * 8, y + 4);
+        ctx.closePath();
+        ctx.fill();
+
+        // Neck
+        ctx.strokeStyle = '#607b8b';
+        ctx.lineWidth = 4;
+        ctx.beginPath();
+        ctx.moveTo(x + d * 16, y);
+        ctx.lineTo(x + d * 26, y - 6);
+        ctx.stroke();
+
+        // Head
+        ctx.fillStyle = '#2c3e50';
+        ctx.beginPath();
+        ctx.arc(x + d * 28, y - 7, 5, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Beak
+        ctx.strokeStyle = '#e8c547';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(x + d * 32, y - 7);
+        ctx.lineTo(x + d * 44, y - 7);
+        ctx.stroke();
       }
 
       // Draw detection radius for creatures fleeing

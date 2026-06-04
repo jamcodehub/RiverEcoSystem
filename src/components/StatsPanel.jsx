@@ -14,7 +14,7 @@ const StatsPanel = ({ stats }) => {
         </div>
 
         <div className="stat-item fish-stat">
-          <span className="stat-icon">🐟</span>
+          <span className="stat-icon">🐠</span>
           <div className="stat-info">
             <span className="stat-label">Fish</span>
             <span className="stat-value">{stats.fish}</span>
@@ -22,7 +22,7 @@ const StatsPanel = ({ stats }) => {
         </div>
 
         <div className="stat-item tadpole-stat">
-          <span className="stat-icon">🐟</span>
+          <span className="stat-icon">🦎</span>
           <div className="stat-info">
             <span className="stat-label">Tadpoles</span>
             <span className="stat-value">{stats.tadpoles}</span>
@@ -30,7 +30,7 @@ const StatsPanel = ({ stats }) => {
         </div>
 
         <div className="stat-item babyfish-stat">
-          <span className="stat-icon">🐠</span>
+          <span className="stat-icon">🐟</span>
           <div className="stat-info">
             <span className="stat-label">Baby Fish</span>
             <span className="stat-value">{stats.babyFish}</span>
@@ -38,7 +38,7 @@ const StatsPanel = ({ stats }) => {
         </div>
 
         <div className="stat-item mosquito-stat">
-          <span className="stat-icon">🦟</span>
+          <span className="stat-icon">🦐</span>
           <div className="stat-info">
             <span className="stat-label">Mosquito Fish</span>
             <span className="stat-value">{stats.mosquito}</span>
@@ -46,10 +46,18 @@ const StatsPanel = ({ stats }) => {
         </div>
 
         <div className="stat-item babymosquito-stat">
-          <span className="stat-icon">🦗</span>
+          <span className="stat-icon">🍤</span>
           <div className="stat-info">
             <span className="stat-label">Baby Mosquito</span>
             <span className="stat-value">{stats.babyMosquito}</span>
+          </div>
+        </div>
+
+        <div className="stat-item heron-stat">
+          <span className="stat-icon">🦅</span>
+          <div className="stat-info">
+            <span className="stat-label">Herons</span>
+            <span className="stat-value">{stats.heron}</span>
           </div>
         </div>
 
@@ -65,7 +73,7 @@ const StatsPanel = ({ stats }) => {
           <span className="stat-icon">📊</span>
           <div className="stat-info">
             <span className="stat-label">Total Life</span>
-            <span className="stat-value">{stats.frogs + stats.fish + stats.tadpoles + stats.babyFish + stats.babyMosquito + stats.mosquito}</span>
+            <span className="stat-value">{stats.frogs + stats.fish + stats.tadpoles + stats.babyFish + stats.babyMosquito + stats.mosquito + stats.heron}</span>
           </div>
         </div>
       </div>

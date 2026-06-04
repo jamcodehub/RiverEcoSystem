@@ -12,7 +12,10 @@ function App() {
   const [showRobotModal, setShowRobotModal] = useState(false);
   const [showTelemetry, setShowTelemetry] = useState(false);
   const [gameTime, setGameTime] = useState(0);
-  const [selectedRobotCode, setSelectedRobotCode] = useState([]);
+  const [robotPlans, setRobotPlans] = useState([
+    { id: 1, name: 'Robot 1', code: [], color: '#4ECDC4' }
+  ]);
+  const [activeRobotPlanId, setActiveRobotPlanId] = useState(1);
   const [gameSpeed, setGameSpeed] = useState(1); // Game speed multiplier
   const [telemetry, setTelemetry] = useState({
     gameTime: 0,
@@ -114,7 +117,7 @@ function App() {
                 ...creature,
                 type: 'frog',
                 id: Math.random(),
-                lifespan: 50000,
+                lifespan: 46000,
               });
               return null;
             }
@@ -124,7 +127,7 @@ function App() {
                 ...creature,
                 type: 'fish',
                 id: Math.random(),
-                lifespan: 50000,
+                lifespan: 46000,
               });
               return null;
             }
@@ -134,12 +137,16 @@ function App() {
                 ...creature,
                 type: 'mosquito',
                 id: Math.random(),
-                lifespan: 50000,
+                lifespan: 46000,
               });
               return null;
             }
             return creature;
           }).filter(Boolean);
+
+          // Population cap - stop breeding at 1000 creatures to prevent lag
+          const getPopulation = () => modified.length + newCreatures.length;
+          const canAddCreature = () => getPopulation() < 1000;
 
           // Breeding system - Fish breed to make baby fish (40% chance)
           const fishCount = modified.filter(c => c.type === 'fish').length;
@@ -149,7 +156,7 @@ function App() {
             for (let i = 0; i < fishes.length; i++) {
               for (let j = i + 1; j < fishes.length; j++) {
                 if (distance(fishes[i], fishes[j]) < 80) {
-                  if (Math.random() < 0.40) {
+                  if (Math.random() < 0.40 && canAddCreature()) {
                     newCreatures.push({
                       id: Math.random(),
                       type: 'babyFish',
@@ -159,7 +166,7 @@ function App() {
                       vy: (Math.random() - 0.5) * 1,
                       age: 0,
                       alive: true,
-                      lifespan: 50000,
+                      lifespan: 3700,
                       breedingCooldown: 0,
                     });
                     fishBreedingIds.add(fishes[i].id);
@@ -178,13 +185,13 @@ function App() {
 
           // Breeding system - Frogs breed to make tadpoles (40% chance)
           const frogCount = modified.filter(c => c.type === 'frog').length;
-          if (Math.random() < 0.008 && frogCount > 1) {
+          if (canAddCreature() && Math.random() < 0.008 && frogCount > 1) {
             const frogs = modified.filter(c => c.type === 'frog' && (c.breedingCooldown || 0) <= 0);
             const frogBreedingIds = new Set();
             for (let i = 0; i < frogs.length; i++) {
               for (let j = i + 1; j < frogs.length; j++) {
                 if (distance(frogs[i], frogs[j]) < 80) {
-                  if (Math.random() < 0.40) {
+                  if (Math.random() < 0.40 && canAddCreature()) {
                     newCreatures.push({
                       id: Math.random(),
                       type: 'tadpole',
@@ -194,7 +201,7 @@ function App() {
                       vy: (Math.random() - 0.5) * 1,
                       age: 0,
                       alive: true,
-                      lifespan: 50000,
+                      lifespan: 3700,
                       breedingCooldown: 0,
                     });
                     frogBreedingIds.add(frogs[i].id);
@@ -213,13 +220,13 @@ function App() {
 
           // Breeding system - Mosquito fish breed to make baby mosquitoes (48% chance - 20% more than frogs/fish)
           const mosquitoCount = modified.filter(c => c.type === 'mosquito').length;
-          if (Math.random() < 0.0096 && mosquitoCount > 1) {
+          if (canAddCreature() && Math.random() < 0.0096 && mosquitoCount > 1) {
             const mosquitoes = modified.filter(c => c.type === 'mosquito' && (c.breedingCooldown || 0) <= 0);
             const mosquitoBreedingIds = new Set();
             for (let i = 0; i < mosquitoes.length; i++) {
               for (let j = i + 1; j < mosquitoes.length; j++) {
                 if (distance(mosquitoes[i], mosquitoes[j]) < 80) {
-                  if (Math.random() < 0.48) {
+                  if (Math.random() < 0.48 && canAddCreature()) {
                     newCreatures.push({
                       id: Math.random(),
                       type: 'babyMosquito',
@@ -229,7 +236,7 @@ function App() {
                       vy: (Math.random() - 0.5) * 1,
                       age: 0,
                       alive: true,
-                      lifespan: 50000,
+                      lifespan: 3700,
                       breedingCooldown: 0,
                     });
                     mosquitoBreedingIds.add(mosquitoes[i].id);
@@ -246,7 +253,140 @@ function App() {
             );
           }
 
-          return [...modified, ...newCreatures];
+          // Heron predation - population control for frogs, fish AND mosquito fish
+          const heronFrogCount = modified.filter(c => c.type === 'frog').length;
+          const heronFishCount = modified.filter(c => c.type === 'fish').length;
+          const heronMosquitoCount = modified.filter(c => c.type === 'mosquito').length;
+          const totalPrey = heronFrogCount + heronFishCount;
+          const heronCount = modified.filter(c => c.type === 'heron').length;
+
+          let maxHerons = 0;
+          if (totalPrey >= 100) {
+            const popAboveTarget = totalPrey > 550;
+            const imbalanced = Math.abs(heronFrogCount - heronFishCount) > 20;
+            if (popAboveTarget || imbalanced) {
+              let heronNeeded = popAboveTarget ? Math.ceil((totalPrey - 550) / 50) : 0;
+              if (imbalanced) heronNeeded = Math.max(heronNeeded, Math.ceil(Math.abs(heronFrogCount - heronFishCount) / 75));
+              maxHerons = Math.min(heronNeeded, 2);
+            }
+          }
+          // Also spawn herons if mosquito fish exceeds 500
+          if (heronMosquitoCount > 500) maxHerons = Math.max(maxHerons, 2);
+
+          if (heronCount < maxHerons) {
+            const fromLeft = Math.random() < 0.5;
+            newCreatures.push({
+              id: Math.random(),
+              type: 'heron',
+              x: fromLeft ? -20 : window.innerWidth + 20,
+              y: 80 + Math.random() * (window.innerHeight - 160),
+              vx: fromLeft ? 3 : -3,
+              vy: 0,
+              age: 0,
+              alive: true,
+              hunted: 0,
+              lifespan: 999999, 
+            });
+          } 
+
+          // Heron eating - consume prey within 80px as it flies through
+          const heronEaten = new Set();
+          modified.forEach(heron => {
+            if (heron.type !== 'heron' || (heron.hunted || 0) >= 50) return;
+
+            const currFrogCount = modified.filter(c => c.type === 'frog' && !heronEaten.has(c.id)).length;
+            const currFishCount = modified.filter(c => c.type === 'fish' && !heronEaten.has(c.id)).length;
+            const currMosquitoCount = modified.filter(c => c.type === 'mosquito' && !heronEaten.has(c.id)).length;
+            const frogRatio = currFrogCount / (currFrogCount + currFishCount || 1);
+            const isBalanced = frogRatio > 0.42 && frogRatio < 0.58;
+            const targetFrogs = currFrogCount > currFishCount;
+            const mosquitoOverpopulated = currMosquitoCount > 500;
+
+            modified.forEach(target => {
+              if ((heron.hunted || 0) >= 50 || distance(heron, target) > 80) return;
+              // Always eat mosquito fish if overpopulated
+              if (mosquitoOverpopulated && target.type === 'mosquito' && Math.random() < 0.85) {
+                heronEaten.add(target.id);
+                heron.hunted = (heron.hunted || 0) + 1;
+              } else if (isBalanced && (target.type === 'frog' || target.type === 'fish') && Math.random() < 0.85) {
+                heronEaten.add(target.id);
+                heron.hunted = (heron.hunted || 0) + 1;
+              } else if (!isBalanced) {
+                if (targetFrogs && target.type === 'frog' && Math.random() < 0.90) {
+                  heronEaten.add(target.id);
+                  heron.hunted = (heron.hunted || 0) + 1;
+                } else if (!targetFrogs && target.type === 'fish' && Math.random() < 0.90) {
+                  heronEaten.add(target.id);
+                  heron.hunted = (heron.hunted || 0) + 1;
+                }
+              }
+            });
+          });
+
+          modified = modified.filter(c => {
+            if (c.type !== 'heron') return true;
+            if ((c.hunted || 0) >= 50) return false;
+            if (c.x < -100 || c.x > window.innerWidth + 100) return false;
+            return true;
+          });
+          modified = modified.filter(c => !heronEaten.has(c.id));
+
+          // HARD POPULATION CAP: Never exceed 550 total prey
+          let allCreatures = [...modified, ...newCreatures];
+          const maxPopulation = 550;
+          
+          if (allCreatures.length > maxPopulation) {
+            // Count current populations
+            const frogs = allCreatures.filter(c => c.type === 'frog').length;
+            const fish = allCreatures.filter(c => c.type === 'fish').length;
+            const excessPopulation = allCreatures.length - maxPopulation;
+            
+            // Remove excess proportionally from whichever is more abundant
+            // This maintains balance and avoids one species being wiped out
+            const imbalance = Math.abs(frogs - fish);
+            
+            if (imbalance > 20) {
+              // Species are imbalanced - remove from the more abundant one
+              if (frogs > fish) {
+                const frogsToRemove = Math.min(frogs - Math.ceil(frogs / 2), excessPopulation);
+                let removed = 0;
+                allCreatures = allCreatures.filter(c => {
+                  if (c.type === 'frog' && removed < frogsToRemove) {
+                    removed++;
+                    return false;
+                  }
+                  return true;
+                });
+              } else {
+                const fishToRemove = Math.min(fish - Math.ceil(fish / 2), excessPopulation);
+                let removed = 0;
+                allCreatures = allCreatures.filter(c => {
+                  if (c.type === 'fish' && removed < fishToRemove) {
+                    removed++;
+                    return false;
+                  }
+                  return true;
+                });
+              }
+            } else {
+              // Species are balanced - remove equally from both
+              const removePerSpecies = Math.ceil(excessPopulation / 2);
+              let frogsRemoved = 0, fishRemoved = 0;
+              allCreatures = allCreatures.filter(c => {
+                if (c.type === 'frog' && frogsRemoved < removePerSpecies) {
+                  frogsRemoved++;
+                  return false;
+                }
+                if (c.type === 'fish' && fishRemoved < removePerSpecies) {
+                  fishRemoved++;
+                  return false;
+                }
+                return true;
+              });
+            }
+          }
+
+          return allCreatures;
         });
 
         // Update robots - aggressive hunting behavior
@@ -410,6 +550,13 @@ function App() {
         currentSpeed = 1.5;
       }
     }
+    // ===== HERON BEHAVIOR =====
+    else if (creature.type === 'heron') {
+      // Just maintain fixed direction set at spawn - no steering
+      dirX = creature.vx;
+      dirY = 0;
+      currentSpeed = Math.abs(creature.vx);
+    }
     // ===== FROG, FISH, AND BABY CREATURES BEHAVIOR =====
     else if (creature.type === 'frog' || creature.type === 'fish' || creature.type === 'babyFish' || creature.type === 'babyMosquito') {
       // Normal wandering - only adults hunt/breed visually
@@ -434,14 +581,22 @@ function App() {
     updated.x = updated.x + dirX * speedMult;
     updated.y = updated.y + dirY * speedMult;
 
-    // Boundaries - wrap horizontally, constrain vertically to river
+// Boundaries - wrap horizontally (EXCEPT for herons), constrain vertically to river
     const CANVAS_W = window.innerWidth;
     const CANVAS_H = window.innerHeight;
     const RIVER_TOP = 50;
     const RIVER_BOTTOM = CANVAS_H - 50;
     
-    if (updated.x < 0) updated.x += CANVAS_W;
-    if (updated.x > CANVAS_W) updated.x -= CANVAS_W;
+    // Handle horizontal movement safely
+    if (updated.type !== 'heron') {
+        if (updated.x < 0) updated.x += CANVAS_W;
+        if (updated.x > CANVAS_W) updated.x -= CANVAS_W;
+    } else {
+        // Optional: Ensure herons traveling right don't get stuck due to math clamping 
+        // Just let them keep their velocity without any restriction
+    }
+    
+    // Vertically constrain everything to the river
     if (updated.y < RIVER_TOP) updated.y = RIVER_TOP;
     if (updated.y > RIVER_BOTTOM) updated.y = RIVER_BOTTOM;
 
@@ -457,8 +612,8 @@ function App() {
 
   const resetEcosystem = () => {
     const newCreatures = [];
-    // Add frogs (20)
-    for (let i = 0; i < 20; i++) {
+    // Add frogs (35)
+    for (let i = 0; i < 35; i++) {
       newCreatures.push({
         id: Math.random(),
         type: 'frog',
@@ -468,7 +623,7 @@ function App() {
         vy: (Math.random() - 0.5) * 1.5,
         age: 0,
         alive: true,
-        lifespan: 50000,
+        lifespan: 46000,
         breedingCooldown: 0,
       });
     }
@@ -483,12 +638,12 @@ function App() {
         vy: (Math.random() - 0.5) * 1.5,
         age: 0,
         alive: true,
-        lifespan: 50000,
+        lifespan: 3700,
         breedingCooldown: 0,
       });
     }
-    // Add fish (15)
-    for (let i = 0; i < 15; i++) {
+    // Add fish (35)
+    for (let i = 0; i < 35; i++) {
       newCreatures.push({
         id: Math.random(),
         type: 'fish',
@@ -498,7 +653,7 @@ function App() {
         vy: (Math.random() - 0.5) * 1.5,
         age: 0,
         alive: true,
-        lifespan: 50000,
+        lifespan: 46000,
         breedingCooldown: 0,
       });
     }
@@ -513,7 +668,7 @@ function App() {
         vy: (Math.random() - 0.5) * 1.5,
         age: 0,
         alive: true,
-        lifespan: 50000,
+        lifespan: 46000,
         breedingCooldown: 0,
       });
     }
@@ -541,8 +696,7 @@ function App() {
     };
     setRobots(prev => [...prev, newRobot]);
     setTelemetry(prev => ({ ...prev, totalRobotsDeployed: prev.totalRobotsDeployed + 1 }));
-    setShowRobotModal(false);
-    setSelectedRobotCode([]);
+    setShowRobotModal(false); // Close modal so user can see deployed robot - tabs persist on reopen
   };
 
   const stats = {
@@ -552,6 +706,7 @@ function App() {
     babyFish: creatures.filter(c => c.type === 'babyFish').length,
     babyMosquito: creatures.filter(c => c.type === 'babyMosquito').length,
     mosquito: creatures.filter(c => c.type === 'mosquito').length,
+    heron: creatures.filter(c => c.type === 'heron').length,
     robots: robots.length,
   };
 
@@ -613,8 +768,10 @@ function App() {
         <RobotBuilder
           onDeploy={deployRobot}
           onClose={() => setShowRobotModal(false)}
-          selectedCode={selectedRobotCode}
-          setSelectedCode={setSelectedRobotCode}
+          robotPlans={robotPlans}
+          setRobotPlans={setRobotPlans}
+          activeRobotId={activeRobotPlanId}
+          setActiveRobotId={setActiveRobotPlanId}
         />
       )}
 
