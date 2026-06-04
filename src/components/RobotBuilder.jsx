@@ -67,13 +67,11 @@ const ROBOT_COLORS = [
   '#AA96DA', '#FCBAD3', '#A8D8EA', '#FFA07A', '#98D8C8'
 ];
 
-const RobotBuilder = ({ onDeploy, onClose, selectedCode, setSelectedCode }) => {
-  const [robots, setRobots] = useState([
-    { id: 1, name: 'Robot 1', code: [], color: ROBOT_COLORS[0] }
-  ]);
-  const [activeRobotId, setActiveRobotId] = useState(1);
+const RobotBuilder = ({ onDeploy, onClose, robotPlans, setRobotPlans, activeRobotId, setActiveRobotId }) => {
   const [draggedBlock, setDraggedBlock] = useState(null);
 
+  const robots = robotPlans;
+  const setRobots = setRobotPlans;
   const activeRobot = robots.find(r => r.id === activeRobotId);
 
   const createNewRobot = () => {

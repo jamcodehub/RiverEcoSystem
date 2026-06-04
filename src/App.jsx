@@ -12,7 +12,10 @@ function App() {
   const [showRobotModal, setShowRobotModal] = useState(false);
   const [showTelemetry, setShowTelemetry] = useState(false);
   const [gameTime, setGameTime] = useState(0);
-  const [selectedRobotCode, setSelectedRobotCode] = useState([]);
+  const [robotPlans, setRobotPlans] = useState([
+    { id: 1, name: 'Robot 1', code: [], color: '#4ECDC4' }
+  ]);
+  const [activeRobotPlanId, setActiveRobotPlanId] = useState(1);
   const [gameSpeed, setGameSpeed] = useState(1); // Game speed multiplier
   const [telemetry, setTelemetry] = useState({
     gameTime: 0,
@@ -250,43 +253,26 @@ function App() {
             );
           }
 
-          // Heron predation - population control for frogs and fish
-          // Herons maintain equilibrium AND enforce population cap (300-550 total)
+          // Heron predation - population control for frogs, fish AND mosquito fish
           const heronFrogCount = modified.filter(c => c.type === 'frog').length;
           const heronFishCount = modified.filter(c => c.type === 'fish').length;
+          const heronMosquitoCount = modified.filter(c => c.type === 'mosquito').length;
           const totalPrey = heronFrogCount + heronFishCount;
-          const targetPerSpecies = Math.floor(totalPrey / 2); // Equilibrium target
           const heronCount = modified.filter(c => c.type === 'heron').length;
-          
-          // Determine if we need herons based on:
-          // 1. Population cap (keep total 300-550)
-          // 2. Species balance (keep frogs ≈ fish)
+
           let maxHerons = 0;
-          
           if (totalPrey >= 300) {
-            const popAboveTarget = totalPrey > 550; // Population cap check
-            const imbalanced = Math.abs(heronFrogCount - heronFishCount) > 20; // Species balance check
-            
+            const popAboveTarget = totalPrey > 550;
+            const imbalanced = Math.abs(heronFrogCount - heronFishCount) > 20;
             if (popAboveTarget || imbalanced) {
-              // Scale herons based on how far off we are
-              let heronNeeded = 0;
-              
-              // Account for total population excess
-              if (popAboveTarget) {
-                heronNeeded = Math.ceil((totalPrey - 550) / 50); // 1 heron per 50 over cap
-              }
-              
-              // Account for species imbalance
-              if (imbalanced) {
-                const imbalanceAmount = Math.abs(heronFrogCount - heronFishCount);
-                heronNeeded = Math.max(heronNeeded, Math.ceil(imbalanceAmount / 75));
-              }
-              
-              maxHerons = Math.min(heronNeeded, 2); // Cap at 2 herons (was 4)
+              let heronNeeded = popAboveTarget ? Math.ceil((totalPrey - 550) / 50) : 0;
+              if (imbalanced) heronNeeded = Math.max(heronNeeded, Math.ceil(Math.abs(heronFrogCount - heronFishCount) / 75));
+              maxHerons = Math.min(heronNeeded, 2);
             }
           }
-          
-          // Spawn new herons if needed - spawn at left or right edge
+          // Also spawn herons if mosquito fish exceeds 500
+          if (heronMosquitoCount > 500) maxHerons = Math.max(maxHerons, 2);
+
           if (heronCount < maxHerons) {
             const fromLeft = Math.random() < 0.5;
             newCreatures.push({
@@ -294,7 +280,7 @@ function App() {
               type: 'heron',
               x: fromLeft ? -20 : window.innerWidth + 20,
               y: 80 + Math.random() * (window.innerHeight - 160),
-              vx: fromLeft ? 3 : -3, // Fixed direction, never changes
+              vx: fromLeft ? 3 : -3,
               vy: 0,
               age: 0,
               alive: true,
@@ -302,25 +288,29 @@ function App() {
             });
           }
 
-          // Heron eating - consume prey in its path as it flies through
+          // Heron eating - consume prey within 80px as it flies through
           const heronEaten = new Set();
           modified.forEach(heron => {
             if (heron.type !== 'heron' || (heron.hunted || 0) >= 50) return;
 
             const currFrogCount = modified.filter(c => c.type === 'frog' && !heronEaten.has(c.id)).length;
             const currFishCount = modified.filter(c => c.type === 'fish' && !heronEaten.has(c.id)).length;
+            const currMosquitoCount = modified.filter(c => c.type === 'mosquito' && !heronEaten.has(c.id)).length;
             const frogRatio = currFrogCount / (currFrogCount + currFishCount || 1);
             const isBalanced = frogRatio > 0.42 && frogRatio < 0.58;
             const targetFrogs = currFrogCount > currFishCount;
+            const mosquitoOverpopulated = currMosquitoCount > 500;
 
             modified.forEach(target => {
-              if ((heron.hunted || 0) >= 50 || distance(heron, target) > 40) return;
-              if (isBalanced) {
-                if ((target.type === 'frog' || target.type === 'fish') && Math.random() < 0.85) {
-                  heronEaten.add(target.id);
-                  heron.hunted = (heron.hunted || 0) + 1;
-                }
-              } else {
+              if ((heron.hunted || 0) >= 50 || distance(heron, target) > 80) return;
+              // Always eat mosquito fish if overpopulated
+              if (mosquitoOverpopulated && target.type === 'mosquito' && Math.random() < 0.85) {
+                heronEaten.add(target.id);
+                heron.hunted = (heron.hunted || 0) + 1;
+              } else if (isBalanced && (target.type === 'frog' || target.type === 'fish') && Math.random() < 0.85) {
+                heronEaten.add(target.id);
+                heron.hunted = (heron.hunted || 0) + 1;
+              } else if (!isBalanced) {
                 if (targetFrogs && target.type === 'frog' && Math.random() < 0.90) {
                   heronEaten.add(target.id);
                   heron.hunted = (heron.hunted || 0) + 1;
@@ -332,7 +322,6 @@ function App() {
             });
           });
 
-          // Remove herons that hit quota or flew off screen
           modified = modified.filter(c => {
             if (c.type !== 'heron') return true;
             if ((c.hunted || 0) >= 50) return false;
@@ -698,8 +687,7 @@ function App() {
     };
     setRobots(prev => [...prev, newRobot]);
     setTelemetry(prev => ({ ...prev, totalRobotsDeployed: prev.totalRobotsDeployed + 1 }));
-    setShowRobotModal(false);
-    setSelectedRobotCode([]);
+    // Don't close modal or clear code - tabs persist for editing
   };
 
   const stats = {
@@ -771,8 +759,10 @@ function App() {
         <RobotBuilder
           onDeploy={deployRobot}
           onClose={() => setShowRobotModal(false)}
-          selectedCode={selectedRobotCode}
-          setSelectedCode={setSelectedRobotCode}
+          robotPlans={robotPlans}
+          setRobotPlans={setRobotPlans}
+          activeRobotId={activeRobotPlanId}
+          setActiveRobotId={setActiveRobotPlanId}
         />
       )}
 
