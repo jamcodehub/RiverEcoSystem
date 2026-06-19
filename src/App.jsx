@@ -581,7 +581,7 @@ function App() {
     updated.x = updated.x + dirX * speedMult;
     updated.y = updated.y + dirY * speedMult;
 
-// Boundaries - wrap horizontally (EXCEPT for herons), constrain vertically to river
+    // Boundaries - wrap horizontally (EXCEPT for herons), constrain vertically to river
     const CANVAS_W = window.innerWidth;
     const CANVAS_H = window.innerHeight;
     const RIVER_TOP = 50;
