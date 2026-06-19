@@ -94,30 +94,38 @@ const RobotBuilder = ({ onDeploy, onClose, robotPlans, setRobotPlans, activeRobo
           touch-action:none;
         }
         
-        /* Compress the blocks panel slightly on iPad so they all fit on one screen without scrolling */
+        /* Compress header on iPad */
+        .modal-header {
+            padding: 10px 15px !important;
+        }
+        .modal-header h2 {
+            font-size: 1.2rem !important;
+            margin: 0 !important;
+        }
+
+        /* Compress the blocks panel and protect the bottom gesture bar */
         .blocks-panel {
-          padding: 10px 15px !important;
+          padding: 5px 15px 45px 15px !important; /* 45px bottom padding keeps blocks away from iOS home bar */
         }
         .category-title {
-          margin: 6px 0 !important;
-          font-size: 15px !important;
+          margin: 5px 0 !important;
+          font-size: 14px !important;
         }
         .block-button {
           padding: 8px 10px !important;
-          margin-bottom: 5px !important;
+          margin-bottom: 4px !important;
           min-height: auto !important;
         }
         .block-label {
           font-size: 13px !important;
         }
+        /* Hiding the secondary descriptions on iPad reclaims a ton of vertical space */
         .block-desc {
-          font-size: 11px !important;
-          margin-top: 2px !important;
+          display: none !important; 
         }
 
         .block-button,
         .block-label,
-        .block-desc,
         .code-workspace,
         .code-block-item {
           -webkit-user-select:none !important;
@@ -495,29 +503,28 @@ const RobotBuilder = ({ onDeploy, onClose, robotPlans, setRobotPlans, activeRobo
       )}
 
       <div className="robot-builder-modal fullscreen-builder" onClick={e => e.stopPropagation()}>
-        <div className="modal-header">
-          <h2>🤖 Robot Builder</h2>
+        <div className="modal-header" style={{ padding: '10px 20px' }}>
+          <h2 style={{ margin: 0, fontSize: '1.5rem' }}>🤖 Robot Builder</h2>
           <button className="close-btn" onClick={onClose}>✕</button>
         </div>
 
-        {/* Robot Tabs */}
-        <div className="robot-tabs">
-          <div className="tabs-container">
+        {/* Robot Tabs & Colors Compressed */}
+        <div className="robot-tabs" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 20px', borderBottom: '1px solid #eee' }}>
+          <div className="tabs-container" style={{ margin: 0, display: 'flex', alignItems: 'center' }}>
             {robots.map(robot => (
               <div
                 key={robot.id}
                 className={`robot-tab ${activeRobotId === robot.id ? 'active' : ''}`}
                 style={{
                   backgroundColor: activeRobotId === robot.id ? robot.color : 'transparent',
-                  borderColor: robot.color
+                  borderColor: robot.color,
+                  marginBottom: 0
                 }}
               >
                 <button
                   className="tab-button"
                   onClick={() => setActiveRobotId(robot.id)}
-                  style={{
-                    color: activeRobotId === robot.id ? '#fff' : robot.color
-                  }}
+                  style={{ color: activeRobotId === robot.id ? '#fff' : robot.color }}
                 >
                   {robot.name}
                 </button>
@@ -532,22 +539,23 @@ const RobotBuilder = ({ onDeploy, onClose, robotPlans, setRobotPlans, activeRobo
                 )}
               </div>
             ))}
-            <button className="btn-new-robot" onClick={createNewRobot} title="Create new robot">
-              + New Robot
+            <button className="btn-new-robot" style={{ marginBottom: 0 }} onClick={createNewRobot} title="Create new robot">
+              + New
             </button>
           </div>
           
           {activeRobot && (
-            <div className="robot-settings">
-              <label>Robot Color:</label>
-              <div className="color-picker">
-                {ROBOT_COLORS.map(color => (
+            <div className="robot-settings" style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: 0 }}>
+              <label style={{ margin: 0, fontSize: '14px' }}>Color:</label>
+              <div className="color-picker" style={{ gap: '4px' }}>
+                {ROBOT_COLORS.slice(0, 5).map(color => (
                   <button
                     key={color}
                     className="color-option"
                     style={{
+                      width: '20px', height: '20px',
                       backgroundColor: color,
-                      border: activeRobot.color === color ? '3px solid #333' : '2px solid #ddd'
+                      border: activeRobot.color === color ? '2px solid #333' : '1px solid #ddd'
                     }}
                     onClick={() => updateRobotColor(color)}
                     title={`Set to ${color}`}
@@ -561,9 +569,8 @@ const RobotBuilder = ({ onDeploy, onClose, robotPlans, setRobotPlans, activeRobo
         <div className="builder-container fullscreen-layout">
           {/* LEFT: Available Blocks */}
           <div className="blocks-panel">
-            <h3>Blocks Library</h3>
-            <p className="panel-description">Drag blocks to the code space</p>
-
+            {/* Removed the "Blocks Library" header and description to save vertical space */}
+            
             <div className="block-categories">
               {/* Sensor Blocks */}
               <div className="block-category">
@@ -581,6 +588,7 @@ const RobotBuilder = ({ onDeploy, onClose, robotPlans, setRobotPlans, activeRobo
                       title={block.description}
                     >
                       <div className="block-label">{block.label}</div>
+                      {/* block-desc is visually hidden on mobile via the injected CSS */}
                       <div className="block-desc">{block.description}</div>
                     </div>
                   ))}
@@ -635,7 +643,8 @@ const RobotBuilder = ({ onDeploy, onClose, robotPlans, setRobotPlans, activeRobo
 
           {/* RIGHT: Code Workspace */}
           <div className="code-panel">
-            <h3>Your Robot Code</h3>
+            {/* Added inline style to compact header spacing */}
+            <h3 style={{ margin: '10px 0', fontSize: '16px' }}>Your Robot Code</h3>
 
             <div
               className="code-workspace"
@@ -645,20 +654,20 @@ const RobotBuilder = ({ onDeploy, onClose, robotPlans, setRobotPlans, activeRobo
             >
               {activeRobot && activeRobot.code.length === 0 && (
                 <div className="empty-workspace">
-                  <p>Drag blocks from the left to build your robot's program</p>
+                  <p>Drag blocks from the left to build your program</p>
                 </div>
               )}
               {activeRobot && activeRobot.code.map((block, index) => renderCodeBlock(block, index))}
             </div>
 
             {/* Action Buttons */}
-            <div className="builder-actions">
+            <div className="builder-actions" style={{ padding: '10px' }}>
               <button
                 className="btn btn-secondary"
                 onClick={handleClearCode}
                 disabled={!activeRobot || activeRobot.code.length === 0}
               >
-                Clear Code
+                Clear
               </button>
               <button
                 className="btn btn-primary"
@@ -666,7 +675,7 @@ const RobotBuilder = ({ onDeploy, onClose, robotPlans, setRobotPlans, activeRobo
                 disabled={!activeRobot || activeRobot.code.length === 0}
                 style={{ backgroundColor: activeRobot ? activeRobot.color : '#4ECDC4' }}
               >
-                Deploy Robot
+                Deploy
               </button>
             </div>
           </div>
