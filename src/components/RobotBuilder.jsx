@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 
 const AVAILABLE_BLOCKS = [
   {
@@ -69,12 +69,57 @@ const ROBOT_COLORS = [
 
 const RobotBuilder = ({ onDeploy, onClose, robotPlans, setRobotPlans, activeRobotId, setActiveRobotId }) => {
   const [draggedBlock, setDraggedBlock] = useState(null);
-  const [touchDraggedBlock, setTouchDraggedBlock] = useState(null);
-  const touchPositionRef = useRef({x:0,y:0});
+  
+  // Custom Touch Drag State for iPad Safari Support
+  const [touchDragState, setTouchDragState] = useState(null);
 
   const robots = robotPlans;
   const setRobots = setRobotPlans;
   const activeRobot = robots.find(r => r.id === activeRobotId);
+  
+  useEffect(() => {
+    const style = document.createElement('style');
+    style.id = 'ipad-builder-fix';
+    style.textContent = `
+      @media (hover:none), (pointer:coarse) {
+        .builder-container.fullscreen-layout {
+          display:grid !important;
+          grid-template-columns: 42% 58% !important;
+          overflow:hidden !important;
+        }
+        .blocks-panel,
+        .code-panel {
+          overflow:hidden !important;
+          -webkit-overflow-scrolling:auto !important;
+        }
+        .blocks-panel {
+          touch-action:none;
+        }
+        .block-button,
+        .block-label,
+        .block-desc,
+        .code-workspace,
+        .code-block-item {
+          -webkit-user-select:none !important;
+          user-select:none !important;
+          -webkit-touch-callout:none !important;
+        }
+        .block-categories,
+        .blocks-list {
+          overflow:visible !important;
+        }
+        .code-workspace {
+          touch-action:none;
+        }
+      }
+    `;
+    document.head.appendChild(style);
+
+    return () => {
+      const existing = document.getElementById('ipad-builder-fix');
+      if (existing) existing.remove();
+    };
+  }, []);
 
   const createNewRobot = () => {
     const newId = Math.max(...robots.map(r => r.id), 0) + 1;
@@ -134,14 +179,11 @@ const RobotBuilder = ({ onDeploy, onClose, robotPlans, setRobotPlans, activeRobo
     if (activeRobot) {
       const updated = [...activeRobot.code];
       let container;
-      
-      // Find the container based on its locator path
       if (containerLocator.isTopLevel) {
         container = updated[containerLocator.index];
       } else {
         container = updated[containerLocator.parentIndex].children[containerLocator.childIndex];
       }
-      
       if (!container.children) {
         container.children = [];
       }
@@ -179,6 +221,7 @@ const RobotBuilder = ({ onDeploy, onClose, robotPlans, setRobotPlans, activeRobo
     onDeploy(pythonCode.split('\n').filter(l => l.trim()), activeRobot.color);
   };
 
+  // --- STANDARD DESKTOP DRAG EVENTS ---
   const handleDragStart = (e, block) => {
     setDraggedBlock(block);
   };
@@ -194,50 +237,11 @@ const RobotBuilder = ({ onDeploy, onClose, robotPlans, setRobotPlans, activeRobo
     e.currentTarget.style.backgroundColor = 'transparent';
   };
 
-  
-const handleTouchStart = (block) => {
-  setTouchDraggedBlock(block);
-};
-
-const handleTouchMove = (e) => {
-  const t = e.touches?.[0];
-  if (!t) return;
-  touchPositionRef.current = { x: t.clientX, y: t.clientY };
-  e.preventDefault();
-};
-
-const handleTouchEnd = () => {
-  if (!touchDraggedBlock) return;
-
-  const workspace =
-    document.querySelector('.code-workspace') ||
-    document.querySelector('[class*="workspace"]');
-
-  if (workspace) {
-    const rect = workspace.getBoundingClientRect();
-    const { x, y } = touchPositionRef.current;
-
-    if (x >= rect.left && x <= rect.right &&
-        y >= rect.top && y <= rect.bottom) {
-
-      if (typeof addBlock === 'function') {
-        addBlock(touchDraggedBlock);
-      } else if (typeof handleAddBlock === 'function') {
-        handleAddBlock(touchDraggedBlock);
-      }
-    }
-  }
-
-  setTouchDraggedBlock(null);
-};
-
-const handleDrop = (e) => {
+  const handleDrop = (e) => {
     e.preventDefault();
     e.currentTarget.style.borderColor = 'transparent';
     e.currentTarget.style.backgroundColor = 'transparent';
     if (draggedBlock) {
-      // Only add if it's from the library (no originalIndex)
-      // Existing blocks are handled by onDragEnd for moving
       if (draggedBlock.originalIndex === undefined) {
         const rect = e.currentTarget.getBoundingClientRect();
         const x = e.clientX - rect.left;
@@ -254,12 +258,10 @@ const handleDrop = (e) => {
     e.currentTarget.style.borderColor = 'transparent';
     e.currentTarget.style.backgroundColor = 'transparent';
     if (draggedBlock && activeRobot) {
-      // Prevent adding a block to its own children (avoid duplication and infinite nesting)
       if (draggedBlock.originalIndex !== undefined && draggedBlock.originalIndex === containerLocator.index) {
         setDraggedBlock(null);
         return;
       }
-      // Only add if it's from the library (no originalIndex) or from a different block
       if (draggedBlock.originalIndex === undefined) {
         handleAddChildBlock(containerLocator, draggedBlock);
       }
@@ -277,16 +279,83 @@ const handleDrop = (e) => {
     e.currentTarget.style.backgroundColor = 'transparent';
   };
 
+  // --- IPAD SAFARI TOUCH EVENTS ---
+  const handleTouchStart = (e, block, source, originalIndex = null) => {
+    const touch = e.touches[0];
+    const target = e.currentTarget;
+    const rect = target.getBoundingClientRect();
+
+    setTouchDragState({
+      block,
+      source,
+      originalIndex,
+      offsetX: touch.clientX - rect.left,
+      offsetY: touch.clientY - rect.top,
+      x: touch.clientX,
+      y: touch.clientY,
+    });
+  };
+
+  const handleGlobalTouchMove = (e) => {
+    if (!touchDragState) return;
+    const touch = e.touches[0];
+    setTouchDragState(prev => ({
+      ...prev,
+      x: touch.clientX,
+      y: touch.clientY
+    }));
+  };
+
+  const handleGlobalTouchEnd = (e) => {
+    if (!touchDragState) return;
+
+    const { block, source, originalIndex, x, y } = touchDragState;
+    
+    // Find what is under the finger (ghost is pointer-events: none, so it won't block this)
+    const dropTarget = document.elementFromPoint(x, y);
+    
+    if (dropTarget) {
+      const containerDropZone = dropTarget.closest('.children-list');
+      const workspace = dropTarget.closest('.code-workspace');
+
+      if (containerDropZone) {
+        // Find container details from datasets
+        const isTop = containerDropZone.dataset.istoplevel === 'true';
+        const idx = parseInt(containerDropZone.dataset.index, 10);
+        const pIdx = parseInt(containerDropZone.dataset.parentindex, 10);
+        const cIdx = parseInt(containerDropZone.dataset.childindex, 10);
+        
+        const locator = isTop 
+          ? { isTopLevel: true, index: idx } 
+          : { isTopLevel: false, parentIndex: pIdx, childIndex: cIdx };
+        
+        if (source === 'workspace' && originalIndex === locator.index) {
+            // Cannot drop a container into itself
+        } else if (source === 'library') {
+            handleAddChildBlock(locator, block);
+        }
+      } else if (workspace) {
+        const rect = workspace.getBoundingClientRect();
+        const relativeX = x - rect.left;
+        const relativeY = y - rect.top;
+        
+        if (source === 'library') {
+            handleAddBlock(block, relativeX, relativeY);
+        } else if (source === 'workspace' && originalIndex !== null) {
+            handleMoveBlock(originalIndex, relativeX, relativeY);
+        }
+      }
+    }
+    
+    setTouchDragState(null);
+  };
+
   const getBlockColor = (category) => {
     switch (category) {
-      case 'sensor':
-        return '#ff6b6b';
-      case 'motor':
-        return '#4ecdc4';
-      case 'control':
-        return '#ffe66d';
-      default:
-        return '#95a5a6';
+      case 'sensor': return '#ff6b6b';
+      case 'motor': return '#4ecdc4';
+      case 'control': return '#ffe66d';
+      default: return '#95a5a6';
     }
   };
 
@@ -300,9 +369,6 @@ const handleDrop = (e) => {
         className="code-block-wrapper"
         style={isTopLevel ? { position: 'absolute', left: `${block.x || 20}px`, top: `${block.y || 20}px` } : {}}
         draggable={isTopLevel}
-          onTouchStart={() => handleTouchStart(block)}
-          onTouchMove={handleTouchMove}
-          onTouchEnd={handleTouchEnd}
         onDragStart={(e) => {
           if (isTopLevel) {
             e.dataTransfer.effectAllowed = 'move';
@@ -320,6 +386,10 @@ const handleDrop = (e) => {
             }
           }
         }}
+        // iPad Touch Support
+        onTouchStart={(e) => {
+          if (isTopLevel) handleTouchStart(e, block, 'workspace', index);
+        }}
       >
         <div
           className={`code-block-item category-${block.category} ${isContainer ? 'container-block' : ''}`}
@@ -334,6 +404,8 @@ const handleDrop = (e) => {
               : handleRemoveBlock(index)
             }
             title="Remove this block"
+            // Prevent touch drag from firing when tapping remove
+            onTouchStart={(e) => e.stopPropagation()} 
           >
             ✕
           </button>
@@ -343,6 +415,11 @@ const handleDrop = (e) => {
           <div className="container-body">
             <div
               className="children-list"
+              // Data attributes used by touch detection
+              data-istoplevel={isTopLevel}
+              data-index={index}
+              data-parentindex={parentIndex !== null ? parentIndex : ""}
+              data-childindex={childIndex !== null ? childIndex : ""}
               onDragOver={handleContainerDragOver}
               onDragLeave={handleContainerDragLeave}
               onDrop={(e) => {
@@ -363,10 +440,47 @@ const handleDrop = (e) => {
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div 
+      className="modal-overlay" 
+      onClick={onClose}
+      // Attach global touch move/end to handle dragging outside element bounds
+      onTouchMove={handleGlobalTouchMove}
+      onTouchEnd={handleGlobalTouchEnd}
+      onTouchCancel={handleGlobalTouchEnd}
+    >
+      {/* GHOST ELEMENT FOR IPAD TOUCH DRAGGING */}
+      {touchDragState && (
+        <div 
+          style={{
+            position: 'fixed',
+            left: `${touchDragState.x - touchDragState.offsetX}px`,
+            top: `${touchDragState.y - touchDragState.offsetY}px`,
+            pointerEvents: 'none', // Crucial: lets elementFromPoint see what's underneath
+            zIndex: 9999,
+            opacity: 0.8,
+            boxShadow: '0 10px 25px rgba(0,0,0,0.2)'
+          }}
+        >
+          <div 
+            className={`block-button ${touchDragState.block.category}-block`} 
+            style={{ 
+              margin: 0,
+              padding: '12px',
+              background: 'white',
+              border: `2px solid ${getBlockColor(touchDragState.block.category)}`,
+              borderRadius: '8px',
+              fontWeight: 'bold',
+              color: '#333'
+            }}
+          >
+            {touchDragState.block.label}
+          </div>
+        </div>
+      )}
+
       <div className="robot-builder-modal fullscreen-builder" onClick={e => e.stopPropagation()}>
         <div className="modal-header">
-          <h2>🤖 Robot Builder (Spike Prime Style)</h2>
+          <h2>🤖 Robot Builder (iPad Compatible)</h2>
           <button className="close-btn" onClick={onClose}>✕</button>
         </div>
 
@@ -446,10 +560,8 @@ const handleDrop = (e) => {
                       key={block.id}
                       className="block-button sensor-block"
                       draggable
-                  onTouchStart={() => handleTouchStart(block)}
-                  onTouchMove={handleTouchMove}
-                  onTouchEnd={handleTouchEnd}
                       onDragStart={(e) => handleDragStart(e, block)}
+                      onTouchStart={(e) => handleTouchStart(e, block, 'library')}
                       title={block.description}
                     >
                       <div className="block-label">{block.label}</div>
@@ -470,10 +582,8 @@ const handleDrop = (e) => {
                       key={block.id}
                       className="block-button motor-block"
                       draggable
-                  onTouchStart={() => handleTouchStart(block)}
-                  onTouchMove={handleTouchMove}
-                  onTouchEnd={handleTouchEnd}
                       onDragStart={(e) => handleDragStart(e, block)}
+                      onTouchStart={(e) => handleTouchStart(e, block, 'library')}
                       title={block.description}
                     >
                       <div className="block-label">{block.label}</div>
@@ -494,10 +604,8 @@ const handleDrop = (e) => {
                       key={block.id}
                       className="block-button control-block"
                       draggable
-                  onTouchStart={() => handleTouchStart(block)}
-                  onTouchMove={handleTouchMove}
-                  onTouchEnd={handleTouchEnd}
                       onDragStart={(e) => handleDragStart(e, block)}
+                      onTouchStart={(e) => handleTouchStart(e, block, 'library')}
                       title={block.description}
                     >
                       <div className="block-label">{block.label}</div>
@@ -519,13 +627,11 @@ const handleDrop = (e) => {
               onDragLeave={handleDragLeave}
               onDrop={handleDrop}
             >
-              {/* Always show the workspace, even if empty */}
               {activeRobot && activeRobot.code.length === 0 && (
                 <div className="empty-workspace">
                   <p>Drag blocks from the left to build your robot's program</p>
                 </div>
               )}
-              {/* Absolutely position all top-level blocks within the workspace */}
               {activeRobot && activeRobot.code.map((block, index) => renderCodeBlock(block, index))}
             </div>
 
