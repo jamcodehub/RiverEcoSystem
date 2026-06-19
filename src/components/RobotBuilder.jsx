@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useRef } from 'react';
 
 const AVAILABLE_BLOCKS = [
   {
@@ -69,59 +69,12 @@ const ROBOT_COLORS = [
 
 const RobotBuilder = ({ onDeploy, onClose, robotPlans, setRobotPlans, activeRobotId, setActiveRobotId }) => {
   const [draggedBlock, setDraggedBlock] = useState(null);
+  const [touchDraggedBlock, setTouchDraggedBlock] = useState(null);
+  const touchPositionRef = useRef({x:0,y:0});
 
   const robots = robotPlans;
   const setRobots = setRobotPlans;
   const activeRobot = robots.find(r => r.id === activeRobotId);
-  useEffect(() => {
-    const style = document.createElement('style');
-    style.id = 'ipad-builder-fix';
-    style.textContent = `
-      @media (hover:none), (pointer:coarse) {
-        .builder-container.fullscreen-layout {
-          display:grid !important;
-          grid-template-columns: 42% 58% !important;
-          overflow:hidden !important;
-        }
-
-        .blocks-panel,
-        .code-panel {
-          overflow:hidden !important;
-          -webkit-overflow-scrolling:auto !important;
-        }
-
-        .blocks-panel {
-          touch-action:none;
-        }
-
-        .block-button,
-        .block-label,
-        .block-desc,
-        .code-workspace,
-        .code-block-item {
-          -webkit-user-select:none !important;
-          user-select:none !important;
-          -webkit-touch-callout:none !important;
-        }
-
-        .block-categories,
-        .blocks-list {
-          overflow:visible !important;
-        }
-
-        .code-workspace {
-          touch-action:none;
-        }
-      }
-    `;
-    document.head.appendChild(style);
-
-    return () => {
-      const existing = document.getElementById('ipad-builder-fix');
-      if (existing) existing.remove();
-    };
-  }, []);
-
 
   const createNewRobot = () => {
     const newId = Math.max(...robots.map(r => r.id), 0) + 1;
@@ -241,7 +194,44 @@ const RobotBuilder = ({ onDeploy, onClose, robotPlans, setRobotPlans, activeRobo
     e.currentTarget.style.backgroundColor = 'transparent';
   };
 
-  const handleDrop = (e) => {
+  
+const handleTouchStart = (block) => {
+  setTouchDraggedBlock(block);
+};
+
+const handleTouchMove = (e) => {
+  const t = e.touches?.[0];
+  if (!t) return;
+  touchPositionRef.current = { x: t.clientX, y: t.clientY };
+  e.preventDefault();
+};
+
+const handleTouchEnd = () => {
+  if (!touchDraggedBlock) return;
+
+  const workspace =
+    document.querySelector('.code-workspace') ||
+    document.querySelector('[class*="workspace"]');
+
+  if (workspace) {
+    const rect = workspace.getBoundingClientRect();
+    const { x, y } = touchPositionRef.current;
+
+    if (x >= rect.left && x <= rect.right &&
+        y >= rect.top && y <= rect.bottom) {
+
+      if (typeof addBlock === 'function') {
+        addBlock(touchDraggedBlock);
+      } else if (typeof handleAddBlock === 'function') {
+        handleAddBlock(touchDraggedBlock);
+      }
+    }
+  }
+
+  setTouchDraggedBlock(null);
+};
+
+const handleDrop = (e) => {
     e.preventDefault();
     e.currentTarget.style.borderColor = 'transparent';
     e.currentTarget.style.backgroundColor = 'transparent';
@@ -310,6 +300,9 @@ const RobotBuilder = ({ onDeploy, onClose, robotPlans, setRobotPlans, activeRobo
         className="code-block-wrapper"
         style={isTopLevel ? { position: 'absolute', left: `${block.x || 20}px`, top: `${block.y || 20}px` } : {}}
         draggable={isTopLevel}
+          onTouchStart={() => handleTouchStart(block)}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
         onDragStart={(e) => {
           if (isTopLevel) {
             e.dataTransfer.effectAllowed = 'move';
@@ -453,6 +446,9 @@ const RobotBuilder = ({ onDeploy, onClose, robotPlans, setRobotPlans, activeRobo
                       key={block.id}
                       className="block-button sensor-block"
                       draggable
+                  onTouchStart={() => handleTouchStart(block)}
+                  onTouchMove={handleTouchMove}
+                  onTouchEnd={handleTouchEnd}
                       onDragStart={(e) => handleDragStart(e, block)}
                       title={block.description}
                     >
@@ -474,6 +470,9 @@ const RobotBuilder = ({ onDeploy, onClose, robotPlans, setRobotPlans, activeRobo
                       key={block.id}
                       className="block-button motor-block"
                       draggable
+                  onTouchStart={() => handleTouchStart(block)}
+                  onTouchMove={handleTouchMove}
+                  onTouchEnd={handleTouchEnd}
                       onDragStart={(e) => handleDragStart(e, block)}
                       title={block.description}
                     >
@@ -495,6 +494,9 @@ const RobotBuilder = ({ onDeploy, onClose, robotPlans, setRobotPlans, activeRobo
                       key={block.id}
                       className="block-button control-block"
                       draggable
+                  onTouchStart={() => handleTouchStart(block)}
+                  onTouchMove={handleTouchMove}
+                  onTouchEnd={handleTouchEnd}
                       onDragStart={(e) => handleDragStart(e, block)}
                       title={block.description}
                     >
