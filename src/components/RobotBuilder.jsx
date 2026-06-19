@@ -84,7 +84,7 @@ const RobotBuilder = ({ onDeploy, onClose, robotPlans, setRobotPlans, activeRobo
       @media (hover:none), (pointer:coarse) {
         .builder-container.fullscreen-layout {
           display:grid !important;
-          grid-template-columns: 42% 58% !important;
+          grid-template-columns: 35% 65% !important;
           overflow:hidden !important;
         }
         .blocks-panel,
@@ -94,32 +94,34 @@ const RobotBuilder = ({ onDeploy, onClose, robotPlans, setRobotPlans, activeRobo
           touch-action:none;
         }
         
-        /* Compress header on iPad */
         .modal-header {
-            padding: 10px 15px !important;
+            padding: 5px 15px !important;
         }
         .modal-header h2 {
-            font-size: 1.2rem !important;
+            font-size: 1.1rem !important;
             margin: 0 !important;
         }
 
-        /* Compress the blocks panel and protect the bottom gesture bar */
         .blocks-panel {
-          padding: 5px 15px 45px 15px !important; /* 45px bottom padding keeps blocks away from iOS home bar */
+          padding: 5px 10px 45px 10px !important; 
         }
         .category-title {
-          margin: 5px 0 !important;
-          font-size: 14px !important;
-        }
-        .block-button {
-          padding: 8px 10px !important;
-          margin-bottom: 4px !important;
-          min-height: auto !important;
-        }
-        .block-label {
+          margin: 4px 0 !important;
           font-size: 13px !important;
         }
-        /* Hiding the secondary descriptions on iPad reclaims a ton of vertical space */
+        
+        /* Tighten block appearance */
+        .block-button {
+          padding: 6px 8px !important;
+          margin-bottom: 4px !important;
+          min-height: auto !important;
+          width: fit-content !important; /* Forces background to fit text */
+          max-width: 95% !important;
+        }
+        .block-label {
+          font-size: 12px !important;
+          white-space: nowrap;
+        }
         .block-desc {
           display: none !important; 
         }
@@ -137,7 +139,7 @@ const RobotBuilder = ({ onDeploy, onClose, robotPlans, setRobotPlans, activeRobo
           overflow:visible !important;
         }
       }
-    `;
+`;
     document.head.appendChild(style);
 
     return () => {
