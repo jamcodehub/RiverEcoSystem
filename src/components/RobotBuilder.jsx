@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 
 const AVAILABLE_BLOCKS = [
   {
@@ -73,6 +73,55 @@ const RobotBuilder = ({ onDeploy, onClose, robotPlans, setRobotPlans, activeRobo
   const robots = robotPlans;
   const setRobots = setRobotPlans;
   const activeRobot = robots.find(r => r.id === activeRobotId);
+  useEffect(() => {
+    const style = document.createElement('style');
+    style.id = 'ipad-builder-fix';
+    style.textContent = `
+      @media (hover:none), (pointer:coarse) {
+        .builder-container.fullscreen-layout {
+          display:grid !important;
+          grid-template-columns: 42% 58% !important;
+          overflow:hidden !important;
+        }
+
+        .blocks-panel,
+        .code-panel {
+          overflow:hidden !important;
+          -webkit-overflow-scrolling:auto !important;
+        }
+
+        .blocks-panel {
+          touch-action:none;
+        }
+
+        .block-button,
+        .block-label,
+        .block-desc,
+        .code-workspace,
+        .code-block-item {
+          -webkit-user-select:none !important;
+          user-select:none !important;
+          -webkit-touch-callout:none !important;
+        }
+
+        .block-categories,
+        .blocks-list {
+          overflow:visible !important;
+        }
+
+        .code-workspace {
+          touch-action:none;
+        }
+      }
+    `;
+    document.head.appendChild(style);
+
+    return () => {
+      const existing = document.getElementById('ipad-builder-fix');
+      if (existing) existing.remove();
+    };
+  }, []);
+
 
   const createNewRobot = () => {
     const newId = Math.max(...robots.map(r => r.id), 0) + 1;
