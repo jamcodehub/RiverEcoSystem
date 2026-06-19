@@ -91,10 +91,30 @@ const RobotBuilder = ({ onDeploy, onClose, robotPlans, setRobotPlans, activeRobo
         .code-panel {
           overflow:hidden !important;
           -webkit-overflow-scrolling:auto !important;
-        }
-        .blocks-panel {
           touch-action:none;
         }
+        
+        /* Compress the blocks panel slightly on iPad so they all fit on one screen without scrolling */
+        .blocks-panel {
+          padding: 10px 15px !important;
+        }
+        .category-title {
+          margin: 6px 0 !important;
+          font-size: 15px !important;
+        }
+        .block-button {
+          padding: 8px 10px !important;
+          margin-bottom: 5px !important;
+          min-height: auto !important;
+        }
+        .block-label {
+          font-size: 13px !important;
+        }
+        .block-desc {
+          font-size: 11px !important;
+          margin-top: 2px !important;
+        }
+
         .block-button,
         .block-label,
         .block-desc,
@@ -107,9 +127,6 @@ const RobotBuilder = ({ onDeploy, onClose, robotPlans, setRobotPlans, activeRobo
         .block-categories,
         .blocks-list {
           overflow:visible !important;
-        }
-        .code-workspace {
-          touch-action:none;
         }
       }
     `;
@@ -319,7 +336,6 @@ const RobotBuilder = ({ onDeploy, onClose, robotPlans, setRobotPlans, activeRobo
       const workspace = dropTarget.closest('.code-workspace');
 
       if (containerDropZone) {
-        // Find container details from datasets
         const isTop = containerDropZone.dataset.istoplevel === 'true';
         const idx = parseInt(containerDropZone.dataset.index, 10);
         const pIdx = parseInt(containerDropZone.dataset.parentindex, 10);
@@ -455,7 +471,7 @@ const RobotBuilder = ({ onDeploy, onClose, robotPlans, setRobotPlans, activeRobo
             position: 'fixed',
             left: `${touchDragState.x - touchDragState.offsetX}px`,
             top: `${touchDragState.y - touchDragState.offsetY}px`,
-            pointerEvents: 'none', // Crucial: lets elementFromPoint see what's underneath
+            pointerEvents: 'none',
             zIndex: 9999,
             opacity: 0.8,
             boxShadow: '0 10px 25px rgba(0,0,0,0.2)'
@@ -480,7 +496,7 @@ const RobotBuilder = ({ onDeploy, onClose, robotPlans, setRobotPlans, activeRobo
 
       <div className="robot-builder-modal fullscreen-builder" onClick={e => e.stopPropagation()}>
         <div className="modal-header">
-          <h2>🤖 Robot Builder (iPad Compatible)</h2>
+          <h2>🤖 Robot Builder</h2>
           <button className="close-btn" onClick={onClose}>✕</button>
         </div>
 
