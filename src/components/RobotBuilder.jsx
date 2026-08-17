@@ -1,4 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+
+// A quick tap-and-drag on a block should scroll the list like any other
+// touch surface. Only a brief hold (no real finger movement) picks the
+// block up for dragging - this mirrors how Scratch/Blockly-style block
+// editors resolve the "scroll vs. drag" ambiguity on touch screens.
+const LONG_PRESS_MS = 150;
+const MOVE_CANCEL_PX = 10;
 
 const AVAILABLE_BLOCKS = [
   {
@@ -69,83 +76,70 @@ const ROBOT_COLORS = [
 
 const RobotBuilder = ({ onDeploy, onClose, robotPlans, setRobotPlans, activeRobotId, setActiveRobotId }) => {
   const [draggedBlock, setDraggedBlock] = useState(null);
-  
-  // Custom Touch Drag State for iPad Safari Support
+
+  // Custom Touch Drag State for iPad Safari Support (drives the ghost block UI)
   const [touchDragState, setTouchDragState] = useState(null);
+
+  // Mutable, non-rendering copy of the touch gesture in progress. Using a
+  // ref (rather than only the state above) lets the native touchmove/touchend
+  // listeners below read the latest position without being recreated on
+  // every frame, and lets us tell a scroll apart from a drag before any
+  // re-render happens.
+  const touchStateRef = useRef(null);
+  const modalRef = useRef(null);
 
   const robots = robotPlans;
   const setRobots = setRobotPlans;
   const activeRobot = robots.find(r => r.id === activeRobotId);
-  
+
+  // Native (non-passive) touch listeners so preventDefault() reliably takes
+  // over the gesture once a block is actually picked up - React's synthetic
+  // touch handlers aren't guaranteed non-passive, so calling preventDefault
+  // there can silently no-op on some browsers/versions.
   useEffect(() => {
-    const style = document.createElement('style');
-    style.id = 'ipad-builder-fix';
-    style.textContent = `
-      @media (hover:none), (pointer:coarse) {
-        .builder-container.fullscreen-layout {
-          display:grid !important;
-          grid-template-columns: 35% 65% !important;
-          overflow:hidden !important;
-        }
-        .blocks-panel,
-        .code-panel {
-          overflow:hidden !important;
-          -webkit-overflow-scrolling:auto !important;
-          touch-action:none;
-        }
-        
-        .modal-header {
-            padding: 5px 15px !important;
-        }
-        .modal-header h2 {
-            font-size: 1.1rem !important;
-            margin: 0 !important;
-        }
+    const el = modalRef.current;
+    if (!el) return;
 
-        .blocks-panel {
-          padding: 5px 10px 45px 10px !important; 
-        }
-        .category-title {
-          margin: 4px 0 !important;
-          font-size: 13px !important;
-        }
-        
-        /* Tighten block appearance */
-        .block-button {
-          padding: 6px 8px !important;
-          margin-bottom: 4px !important;
-          min-height: auto !important;
-          width: fit-content !important; /* Forces background to fit text */
-          max-width: 95% !important;
-        }
-        .block-label {
-          font-size: 12px !important;
-          white-space: nowrap;
-        }
-        .block-desc {
-          display: none !important; 
-        }
+    const onTouchMoveNative = (e) => {
+      const st = touchStateRef.current;
+      if (!st) return;
+      const touch = e.touches[0];
+      if (!touch) return;
 
-        .block-button,
-        .block-label,
-        .code-workspace,
-        .code-block-item {
-          -webkit-user-select:none !important;
-          user-select:none !important;
-          -webkit-touch-callout:none !important;
+      if (!st.dragging) {
+        const dx = Math.abs(touch.clientX - st.startX);
+        const dy = Math.abs(touch.clientY - st.startY);
+        if (dx > MOVE_CANCEL_PX || dy > MOVE_CANCEL_PX) {
+          // The finger moved before the long-press fired - this is a scroll,
+          // not a drag. Cancel the pending pickup and let the browser scroll.
+          clearTimeout(st.timer);
+          touchStateRef.current = null;
         }
-        .block-categories,
-        .blocks-list {
-          overflow:visible !important;
-        }
+        return;
       }
-`;
-    document.head.appendChild(style);
+
+      // A block is actively being dragged - take over the gesture so the
+      // page doesn't scroll underneath it.
+      e.preventDefault();
+      st.x = touch.clientX;
+      st.y = touch.clientY;
+      setTouchDragState(prev => (prev ? { ...prev, x: touch.clientX, y: touch.clientY } : prev));
+    };
+
+    const onTouchEndNative = () => {
+      resolveTouchDrop();
+    };
+
+    el.addEventListener('touchmove', onTouchMoveNative, { passive: false });
+    el.addEventListener('touchend', onTouchEndNative, { passive: true });
+    el.addEventListener('touchcancel', onTouchEndNative, { passive: true });
 
     return () => {
-      const existing = document.getElementById('ipad-builder-fix');
-      if (existing) existing.remove();
+      el.removeEventListener('touchmove', onTouchMoveNative);
+      el.removeEventListener('touchend', onTouchEndNative);
+      el.removeEventListener('touchcancel', onTouchEndNative);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const createNewRobot = () => {
@@ -307,72 +301,99 @@ const RobotBuilder = ({ onDeploy, onClose, robotPlans, setRobotPlans, activeRobo
   };
 
   // --- IPAD SAFARI TOUCH EVENTS ---
+  // Starting a touch never immediately grabs the block - that would fight
+  // with finger-scrolling. Instead we arm a short timer; if the finger is
+  // still roughly in place when it fires, the block is picked up. If the
+  // finger moves first (see onTouchMoveNative above), it's treated as a
+  // normal scroll and the timer is cancelled.
   const handleTouchStart = (e, block, source, originalIndex = null) => {
     const touch = e.touches[0];
-    const target = e.currentTarget;
-    const rect = target.getBoundingClientRect();
+    const rect = e.currentTarget.getBoundingClientRect();
 
-    setTouchDragState({
+    if (touchStateRef.current?.timer) {
+      clearTimeout(touchStateRef.current.timer);
+    }
+
+    const startX = touch.clientX;
+    const startY = touch.clientY;
+    const offsetX = touch.clientX - rect.left;
+    const offsetY = touch.clientY - rect.top;
+
+    const timer = setTimeout(() => {
+      if (!touchStateRef.current) return;
+      touchStateRef.current.dragging = true;
+      setTouchDragState({
+        block,
+        source,
+        originalIndex,
+        offsetX,
+        offsetY,
+        x: startX,
+        y: startY,
+      });
+    }, LONG_PRESS_MS);
+
+    touchStateRef.current = {
       block,
       source,
       originalIndex,
-      offsetX: touch.clientX - rect.left,
-      offsetY: touch.clientY - rect.top,
-      x: touch.clientX,
-      y: touch.clientY,
-    });
+      startX,
+      startY,
+      offsetX,
+      offsetY,
+      x: startX,
+      y: startY,
+      dragging: false,
+      timer,
+    };
   };
 
-  const handleGlobalTouchMove = (e) => {
-    if (!touchDragState) return;
-    const touch = e.touches[0];
-    setTouchDragState(prev => ({
-      ...prev,
-      x: touch.clientX,
-      y: touch.clientY
-    }));
-  };
+  const resolveTouchDrop = () => {
+    const st = touchStateRef.current;
+    if (!st) return;
 
-  const handleGlobalTouchEnd = (e) => {
-    if (!touchDragState) return;
+    if (st.timer) clearTimeout(st.timer);
 
-    const { block, source, originalIndex, x, y } = touchDragState;
-    
-    // Find what is under the finger (ghost is pointer-events: none, so it won't block this)
-    const dropTarget = document.elementFromPoint(x, y);
-    
-    if (dropTarget) {
-      const containerDropZone = dropTarget.closest('.children-list');
-      const workspace = dropTarget.closest('.code-workspace');
+    if (st.dragging) {
+      const { block, source, originalIndex, x, y } = st;
 
-      if (containerDropZone) {
-        const isTop = containerDropZone.dataset.istoplevel === 'true';
-        const idx = parseInt(containerDropZone.dataset.index, 10);
-        const pIdx = parseInt(containerDropZone.dataset.parentindex, 10);
-        const cIdx = parseInt(containerDropZone.dataset.childindex, 10);
-        
-        const locator = isTop 
-          ? { isTopLevel: true, index: idx } 
-          : { isTopLevel: false, parentIndex: pIdx, childIndex: cIdx };
-        
-        if (source === 'workspace' && originalIndex === locator.index) {
+      // Find what is under the finger (ghost is pointer-events: none, so it won't block this)
+      const dropTarget = document.elementFromPoint(x, y);
+
+      if (dropTarget) {
+        const containerDropZone = dropTarget.closest('.children-list');
+        const workspace = dropTarget.closest('.code-workspace');
+
+        if (containerDropZone) {
+          const isTop = containerDropZone.dataset.istoplevel === 'true';
+          const idx = parseInt(containerDropZone.dataset.index, 10);
+          const pIdx = parseInt(containerDropZone.dataset.parentindex, 10);
+          const cIdx = parseInt(containerDropZone.dataset.childindex, 10);
+
+          const locator = isTop
+            ? { isTopLevel: true, index: idx }
+            : { isTopLevel: false, parentIndex: pIdx, childIndex: cIdx };
+
+          if (source === 'workspace' && originalIndex === locator.index) {
             // Cannot drop a container into itself
-        } else if (source === 'library') {
+          } else if (source === 'library') {
             handleAddChildBlock(locator, block);
-        }
-      } else if (workspace) {
-        const rect = workspace.getBoundingClientRect();
-        const relativeX = x - rect.left;
-        const relativeY = y - rect.top;
-        
-        if (source === 'library') {
+          }
+        } else if (workspace) {
+          const rect = workspace.getBoundingClientRect();
+          const relativeX = x - rect.left;
+          const relativeY = y - rect.top;
+
+          if (source === 'library') {
             handleAddBlock(block, relativeX, relativeY);
-        } else if (source === 'workspace' && originalIndex !== null) {
+          } else if (source === 'workspace' && originalIndex !== null) {
             handleMoveBlock(originalIndex, relativeX, relativeY);
+          }
         }
       }
     }
-    
+
+    touchStateRef.current = null;
     setTouchDragState(null);
   };
 
@@ -433,7 +454,7 @@ const RobotBuilder = ({ onDeploy, onClose, robotPlans, setRobotPlans, activeRobo
             // Prevent touch drag from firing when tapping remove
             onTouchStart={(e) => e.stopPropagation()} 
           >
-            ✕
+            &times;
           </button>
         </div>
         
@@ -466,13 +487,10 @@ const RobotBuilder = ({ onDeploy, onClose, robotPlans, setRobotPlans, activeRobo
   };
 
   return (
-    <div 
-      className="modal-overlay" 
+    <div
+      ref={modalRef}
+      className="modal-overlay"
       onClick={onClose}
-      // Attach global touch move/end to handle dragging outside element bounds
-      onTouchMove={handleGlobalTouchMove}
-      onTouchEnd={handleGlobalTouchEnd}
-      onTouchCancel={handleGlobalTouchEnd}
     >
       {/* GHOST ELEMENT FOR IPAD TOUCH DRAGGING */}
       {touchDragState && (
@@ -506,8 +524,8 @@ const RobotBuilder = ({ onDeploy, onClose, robotPlans, setRobotPlans, activeRobo
 
       <div className="robot-builder-modal fullscreen-builder" onClick={e => e.stopPropagation()}>
         <div className="modal-header" style={{ padding: '10px 20px' }}>
-          <h2 style={{ margin: 0, fontSize: '1.5rem' }}>🤖 Robot Builder</h2>
-          <button className="close-btn" onClick={onClose}>✕</button>
+          <h2 style={{ margin: 0, fontSize: '1.5rem' }}>Robot Builder</h2>
+          <button className="close-btn" onClick={onClose}>&times;</button>
         </div>
 
         {/* Robot Tabs & Colors Compressed */}
@@ -536,7 +554,7 @@ const RobotBuilder = ({ onDeploy, onClose, robotPlans, setRobotPlans, activeRobo
                     onClick={() => deleteRobot(robot.id)}
                     title="Delete this robot"
                   >
-                    ✕
+                    &times;
                   </button>
                 )}
               </div>
@@ -577,7 +595,7 @@ const RobotBuilder = ({ onDeploy, onClose, robotPlans, setRobotPlans, activeRobo
               {/* Sensor Blocks */}
               <div className="block-category">
                 <h4 className="category-title" style={{ color: '#ff6b6b' }}>
-                  🎯 Sensors
+                  Sensors
                 </h4>
                 <div className="blocks-list">
                   {AVAILABLE_BLOCKS.filter(b => b.category === 'sensor').map(block => (
@@ -600,7 +618,7 @@ const RobotBuilder = ({ onDeploy, onClose, robotPlans, setRobotPlans, activeRobo
               {/* Motor Blocks */}
               <div className="block-category">
                 <h4 className="category-title" style={{ color: '#4ecdc4' }}>
-                  ⚙️ Motors
+                  Motors
                 </h4>
                 <div className="blocks-list">
                   {AVAILABLE_BLOCKS.filter(b => b.category === 'motor').map(block => (
@@ -622,7 +640,7 @@ const RobotBuilder = ({ onDeploy, onClose, robotPlans, setRobotPlans, activeRobo
               {/* Control Blocks */}
               <div className="block-category">
                 <h4 className="category-title" style={{ color: '#ffe66d' }}>
-                  🔄 Control
+                  Control
                 </h4>
                 <div className="blocks-list">
                   {AVAILABLE_BLOCKS.filter(b => b.category === 'control').map(block => (

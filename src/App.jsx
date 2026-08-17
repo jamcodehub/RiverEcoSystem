@@ -19,8 +19,9 @@ function App() {
   const [gameSpeed, setGameSpeed] = useState(1); // Game speed multiplier
   const [telemetry, setTelemetry] = useState({
     gameTime: 0,
-    nativeSpeciesKilled: 0,
-    mosquitoesKilledByRobots: 0,
+    nativeSpeciesEaten: 0,
+    totalMosquitoesEaten: 0,
+    mosquitoesEatenByRobots: 0,
     frogsHatched: 0,
     totalRobotsDeployed: 0,
   });
@@ -54,14 +55,20 @@ function App() {
     const nativeDeath = (prevCreaturesRef.current.frogs - currentCounts.frogs) +
                         (prevCreaturesRef.current.fish - currentCounts.fish) +
                         (prevCreaturesRef.current.tadpoles - currentCounts.tadpoles);
-    
+
+    // Check for invasive mosquito fish death (adults + babies combined, so
+    // a babyMosquito -> mosquito maturation doesn't get miscounted as a death)
+    const mosquitoDeath = (prevCreaturesRef.current.mosquito - currentCounts.mosquito) +
+                          (prevCreaturesRef.current.babyMosquito - currentCounts.babyMosquito);
+
     // Check for frog birth (tadpole -> frog conversion)
     const frogBirth = Math.max(0, currentCounts.frogs - prevCreaturesRef.current.frogs);
 
-    if (nativeDeath > 0 || frogBirth > 0) {
+    if (nativeDeath > 0 || mosquitoDeath > 0 || frogBirth > 0) {
       setTelemetry(prev => ({
         ...prev,
-        nativeSpeciesKilled: prev.nativeSpeciesKilled + nativeDeath,
+        nativeSpeciesEaten: prev.nativeSpeciesEaten + Math.max(0, nativeDeath),
+        totalMosquitoesEaten: prev.totalMosquitoesEaten + Math.max(0, mosquitoDeath),
         frogsHatched: prev.frogsHatched + frogBirth,
       }));
     }
@@ -398,7 +405,11 @@ function App() {
               let updated = { ...robot };
               const hasSensorCommand = robot.code.some(b => typeof b === 'string' && b.includes('sensor'));
               const hasSwimCommand = robot.code.some(b => typeof b === 'string' && b.includes('swim'));
-              const hasRotateCommand = robot.code.some(b => typeof b === 'string' && b.includes('rotate'));
+              // Only the trap/eat motor blocks should let a robot actually
+              // capture a mosquito fish - "motor rotate (swim)" also contains
+              // the substring "rotate", so checking for that alone let a
+              // robot with just a swim block kill on contact too.
+              const hasCaptureCommand = robot.code.some(b => typeof b === 'string' && (b.includes('trap') || b.includes('eat')));
 
               // Check for nearby mosquitoes
               const HUNT_RANGE = 250; // Extended vision
@@ -427,7 +438,7 @@ function App() {
                 updated.huntingSpeed = huntSpeed; // Track speed for visual ramp-up
 
                 // Kill mosquito if close enough
-                if (dist < 15 && hasRotateCommand) {
+                if (dist < 15 && hasCaptureCommand) {
                   setCreatures(prev => {
                     const filtered = prev.filter(c => c.id !== target.id);
                     mosquitoesKilled++;
@@ -475,7 +486,7 @@ function App() {
           if (mosquitoesKilled > 0) {
             setTelemetry(prev => ({
               ...prev,
-              mosquitoesKilledByRobots: prev.mosquitoesKilledByRobots + mosquitoesKilled,
+              mosquitoesEatenByRobots: prev.mosquitoesEatenByRobots + mosquitoesKilled,
             }));
           }
 
@@ -724,22 +735,22 @@ function App() {
           <div className="bottom-controls">
             <div className="controls">
               <button onClick={() => setShowRobotModal(true)} className="btn btn-primary">
-                🤖 Build Robot
+                Build Robot
               </button>
               <button
                 onClick={() => setIsPaused(!isPaused)}
                 className="btn btn-secondary"
               >
-                {isPaused ? '▶ Resume' : '⏸ Pause'}
+                {isPaused ? 'Resume' : 'Pause'}
               </button>
               <button onClick={resetEcosystem} className="btn btn-secondary">
-                ↻ Reset
+                Reset
               </button>
               <button 
                 onClick={() => setShowTelemetry(true)} 
                 className="btn btn-telemetry"
               >
-                📊 Telemetry
+                Telemetry
               </button>
               
               {/* Game Speed Controls */}

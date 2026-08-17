@@ -64,19 +64,27 @@ body {
 
 .top-stats {
   pointer-events: auto;
-  border: none;
-  padding: 8px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(10, 14, 28, 0.88);
+  border-radius: 10px;
+  padding: 10px 14px;
   max-width: 100%;
   max-height: 20%;
   overflow-y: auto;
+  align-self: flex-start;
 }
 
 .bottom-controls {
   pointer-events: auto;
-  background: rgba(15, 30, 15, 0.224);
+  background: rgba(10, 14, 28, 0.88);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
   display: flex;
   justify-content: center;
   padding: 8px;
+  margin: 0 auto;
+  width: fit-content;
+  max-width: 100%;
 }
 
 /* ============ Stats Panel ============ */
@@ -123,33 +131,36 @@ body {
 .stat-item {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 4px 8px;
+  padding: 4px 10px;
   -webkit-user-select: none;
   user-select: none;
 }
 
 @media (hover: hover) {
   .stat-item:hover {
-    opacity: 0.8;
+    opacity: 0.85;
   }
 }
 
-.stat-icon {
-  font-size: 16px;
+.stat-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
 .stat-label {
   font-size: 11px;
-  color: #fefefe;
+  color: #c3cadb;
   text-transform: uppercase;
-  font-weight: 500;
-  letter-spacing: 0.5px;
+  font-weight: 600;
+  letter-spacing: 0.6px;
+  white-space: nowrap;
 }
 
 .stat-value {
-  font-size: 15px;
+  font-size: 17px;
   font-weight: 700;
+  line-height: 1.1;
   color: #00d4ff;
 }
 
@@ -204,9 +215,12 @@ body {
 }
 
 .btn {
-  padding: 8px 12px;
+  padding: 8px 14px;
   background: transparent;
-  border: none;
+  /* Solid + transparent (not "none") so each variant's border-color below
+     actually renders - "border: none" would have suppressed it entirely. */
+  border: 2px solid transparent;
+  border-radius: 6px;
   color: #00d4ff;
   font-size: 13px;
   font-weight: 600;
@@ -229,7 +243,6 @@ body {
 
 .btn-telemetry:hover:not(:disabled) {
   background: rgba(155, 89, 182, 0.2);
-  box-shadow: 0 0 12px rgba(155, 89, 182, 0.4);
 }
 
 @media (hover: none) and (pointer: coarse) {
@@ -241,7 +254,6 @@ body {
 
   .btn:active:not(:disabled) {
     background: #1a5276;
-    box-shadow: 0 0 12px rgba(0, 212, 255, 0.4);
   }
 }
 
@@ -263,12 +275,11 @@ body {
 
 .btn-danger:hover {
   background: #5e1a1a;
-  box-shadow: 0 0 12px rgba(231, 76, 60, 0.4);
 }
 
 .btn-secondary {
-  border-color: #888;
-  color: #888;
+  border-color: #a7b1c4;
+  color: #a7b1c4;
 }
 
 .btn-secondary:hover {
@@ -372,7 +383,7 @@ body {
 }
 
 .stat-row .percentage {
-  color: #888;
+  color: #a7b1c4;
   font-size: 12px;
   margin-left: 8px;
 }
@@ -496,7 +507,7 @@ body {
 .close-btn {
   background: none;
   border: none;
-  color: #888;
+  color: #a7b1c4;
   font-size: 24px;
   cursor: pointer;
   width: 40px;
@@ -548,7 +559,7 @@ body {
 
 .panel-description {
   font-size: 12px;
-  color: #888;
+  color: #a7b1c4;
   margin-bottom: 16px;
 }
 
@@ -599,7 +610,6 @@ body {
 .sensor-block:hover {
   background: rgba(255, 107, 107, 0.1);
   border-color: #ff6b6b;
-  box-shadow: 0 0 8px rgba(255, 107, 107, 0.2);
 }
 
 .motor-block {
@@ -609,7 +619,6 @@ body {
 .motor-block:hover {
   background: rgba(78, 205, 196, 0.1);
   border-color: #4ecdc4;
-  box-shadow: 0 0 8px rgba(78, 205, 196, 0.2);
 }
 
 .control-block {
@@ -619,7 +628,6 @@ body {
 .control-block:hover {
   background: rgba(255, 230, 109, 0.1);
   border-color: #ffe66d;
-  box-shadow: 0 0 8px rgba(255, 230, 109, 0.2);
 }
 
 .block-label {
@@ -633,7 +641,7 @@ body {
 .block-desc {
   display: block;
   font-size: 11px;
-  color: #888;
+  color: #a7b1c4;
 }
 
 /* ============ Code Workspace ============ */
@@ -911,7 +919,7 @@ body {
 
 .robot-settings label {
   font-size: 12px;
-  color: #888;
+  color: #a7b1c4;
   font-weight: 500;
 }
 
@@ -1073,12 +1081,37 @@ body {
 
 .mini-add-btn:hover {
   background: rgba(255, 230, 109, 0.3);
-  box-shadow: 0 0 6px rgba(255, 230, 109, 0.3);
 }
 
 /* ============ Touch & Mobile Optimization ============ */
-@media (hover: none) and (pointer: coarse) {
-  /* Touch devices */
+@media (hover: none), (pointer: coarse) {
+  /* Touch devices: the blocks & code panels must stay scrollable with a
+     finger. Picking a block up for drag-and-drop is handled in JS via a
+     short long-press (see RobotBuilder.jsx), so a normal swipe here always
+     scrolls the list rather than fighting it. */
+  .blocks-panel,
+  .code-panel {
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-y;
+  }
+
+  .blocks-list,
+  .code-workspace,
+  .block-button,
+  .code-block-item {
+    touch-action: pan-y;
+  }
+
+  .block-button,
+  .block-label,
+  .code-workspace,
+  .code-block-item {
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+  }
+
   .block-button,
   .remove-btn,
   .mini-add-btn {
@@ -1088,7 +1121,7 @@ body {
   }
 
   .block-button {
-    padding: 16px 14px;
+    padding: 14px;
   }
 
   .code-block-item {
@@ -1108,10 +1141,10 @@ body {
   }
 }
 
-/* Tablet/iPad specific */
+/* iPad landscape (~1024-1194px) */
 @media (max-width: 1024px) {
   .fullscreen-layout {
-    grid-template-columns: 30% 1fr;
+    grid-template-columns: 32% 1fr;
   }
 
   .block-button {
@@ -1127,7 +1160,42 @@ body {
   }
 }
 
-@media (max-width: 768px) {
+/* iPad portrait (~768-900px) - still plenty of room for the two-column
+   builder, just narrower than desktop/landscape. */
+@media (max-width: 900px) {
+  .fullscreen-layout {
+    grid-template-columns: 42% 1fr;
+  }
+
+  .modal-header {
+    padding: 12px 16px;
+  }
+
+  .modal-header h2 {
+    font-size: 1.15rem;
+    margin: 0;
+  }
+
+  .blocks-panel {
+    padding: 10px 12px 40px 12px;
+  }
+
+  .category-title {
+    margin: 6px 0;
+    font-size: 13px;
+  }
+
+  .block-label {
+    font-size: 12.5px;
+  }
+
+  .block-desc {
+    display: none;
+  }
+}
+
+/* Phones - narrower than any iPad, stack blocks above code */
+@media (max-width: 600px) {
   .fullscreen-builder {
     max-height: 100vh;
   }
@@ -1176,16 +1244,11 @@ body {
 
 /* ============ Responsive (Original) ============ */
 @media (max-width: 1200px) {
-  .builder-container {
-    grid-template-columns: 1fr;
-    max-height: none;
-  }
-
-  .blocks-panel {
-    border-right: none;
-    border-bottom: 1px solid #333;
-  }
-
+  /* Note: the Robot Builder always renders with both "builder-container"
+     and "fullscreen-layout" on the same element, and the breakpoints above
+     already own its column layout (down to phone width). Forcing a single
+     column here too would collapse the builder on iPad Pro 11" landscape
+     (~1194px wide), so this block is scoped to the non-builder stats UI. */
   .stats-grid {
     grid-template-columns: repeat(3, 1fr);
   }

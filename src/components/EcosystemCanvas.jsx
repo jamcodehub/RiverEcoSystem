@@ -17,9 +17,12 @@ const EcosystemCanvas = ({ creatures, robots }) => {
     return reeds;
   }, [canvasSize.width]);
 
-  // Handle canvas resize
+  // Handle canvas resize - debounced so a drag-resize or iPad orientation
+  // change doesn't force a full redraw on every intermediate frame.
   useEffect(() => {
-    const handleResize = () => {
+    let resizeTimer = null;
+
+    const applyResize = () => {
       const canvas = canvasRef.current;
       if (!canvas) return;
       setCanvasSize({
@@ -28,10 +31,19 @@ const EcosystemCanvas = ({ creatures, robots }) => {
       });
     };
 
+    const handleResize = () => {
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(applyResize, 150);
+    };
+
     // Initial sizing
-    setTimeout(handleResize, 100);
+    const initialTimer = setTimeout(applyResize, 100);
     window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
+    return () => {
+      clearTimeout(resizeTimer);
+      clearTimeout(initialTimer);
+      window.removeEventListener('resize', handleResize);
+    };
   }, []);
 
   useEffect(() => {

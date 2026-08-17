@@ -30,29 +30,29 @@ const TelemetryPanel = ({ onClose, telemetry, stats }) => {
     healthScore = (totalNative / totalLives) * 100;
   }
   
-  let healthStatus = '🔴 Critical';
+  let healthStatus = 'Critical';
   let healthColor = '#e74c3c';
   
   if (totalInvasive === 0 && totalNative > 0) {
-      healthStatus = '🟢 Clean & Thriving';
+      healthStatus = 'Clean & Thriving';
       healthColor = '#2ecc71';
   } else if (healthScore > 70) {
-      healthStatus = '🟢 Thriving';
+      healthStatus = 'Thriving';
       healthColor = '#2ecc71';
   } else if (healthScore > 40) {
-      healthStatus = '🟡 Stable';
+      healthStatus = 'Stable';
       healthColor = '#f39c12';
   }
 
   // --- PROTECTION STATUS ALGORITHM ---
-  let protectionStatus = '✗ Struggling';
+  let protectionStatus = 'Struggling';
   let protectionClass = 'danger';
   
   if (totalInvasive === 0) {
-      protectionStatus = '✓ Secured';
+      protectionStatus = 'Secured';
       protectionClass = 'success';
   } else if (robotEffectiveness > 50) {
-      protectionStatus = '✓ Active';
+      protectionStatus = 'Active';
       protectionClass = 'success';
   }
 
@@ -60,19 +60,19 @@ const TelemetryPanel = ({ onClose, telemetry, stats }) => {
     <div className="modal-overlay" onClick={onClose}>
       <div className="telemetry-modal" onClick={e => e.stopPropagation()}>
         <div className="modal-header">
-          <h2>📊 River Telemetry Dashboard</h2>
-          <button className="close-btn" onClick={onClose}>✕</button>
+          <h2>River Telemetry Dashboard</h2>
+          <button className="close-btn" onClick={onClose}>&times;</button>
         </div>
 
         <div className="telemetry-content">
           <div className="telemetry-section">
-            <h3>⏱️ Simulation Time</h3>
+            <h3>Simulation Time</h3>
             <div className="big-stat">{formatTime(telemetry.gameTime)}</div>
           </div>
 
           <div className="telemetry-grid">
             <div className="telemetry-card">
-              <h4>🌍 Population Overview</h4>
+              <h4>Population Overview</h4>
               <div className="stat-row">
                 <span>Native Frogs & Tadpoles</span>
                 <span className="value">{stats.frogs + stats.tadpoles}</span>
@@ -96,7 +96,7 @@ const TelemetryPanel = ({ onClose, telemetry, stats }) => {
             </div>
 
             <div className="telemetry-card">
-              <h4>⚔️ Predation Stats</h4>
+              <h4>Predation Stats</h4>
               <div className="stat-row">
                 <span>Native Species Eaten</span>
                 <span className="value danger">{telemetry.nativeSpeciesEaten}</span>
@@ -117,7 +117,7 @@ const TelemetryPanel = ({ onClose, telemetry, stats }) => {
             </div>
 
             <div className="telemetry-card">
-              <h4>🤖 Robot Performance</h4>
+              <h4>Robot Performance</h4>
               <div className="stat-row">
                 <span>Active Robots</span>
                 <span className="value">{stats.robots}</span>
@@ -140,7 +140,7 @@ const TelemetryPanel = ({ onClose, telemetry, stats }) => {
             </div>
 
             <div className="telemetry-card">
-              <h4>📈 Ecosystem Health</h4>
+              <h4>Ecosystem Health</h4>
               <div className="health-bar">
                 <div 
                   className="health-fill" 
