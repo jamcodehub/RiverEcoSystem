@@ -315,8 +315,12 @@ const RobotBuilder = ({ onDeploy, onClose, robotPlans, setRobotPlans, activeRobo
   };
 
   // ---- Desktop mouse drag (HTML5 DnD) ----
+  // Some browsers (notably Firefox) silently refuse to complete a drag
+  // unless dataTransfer.setData() was called during dragstart, even though
+  // the actual payload is carried in React state, not the transfer itself.
   const startMouseDrag = (e, payload, effect) => {
     e.dataTransfer.effectAllowed = effect;
+    e.dataTransfer.setData('text/plain', payload.kind === 'new' ? payload.blockDef.id : payload.instanceId);
     setDragPayload(payload);
   };
 

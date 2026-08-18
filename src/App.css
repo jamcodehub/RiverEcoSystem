@@ -695,23 +695,23 @@ body {
   padding: 24px 0;
 }
 
-/* A thin, always-present drop target between blocks. Padding (rather than
-   height alone) keeps the hit area comfortable for touch without making the
-   line itself look thick. */
+/* A thin, always-present drop target between blocks. The app has a global
+   box-sizing: border-box reset, which would make padding eat into a fixed
+   height instead of adding to it - so this is pinned to content-box
+   explicitly, height:0 plus vertical padding is what actually creates a
+   real (if visually thin) hit area. */
 .drop-slot {
-  height: 4px;
-  margin: 4px 0;
-  padding: 6px 0;
-  margin-top: -6px;
-  margin-bottom: -6px;
+  box-sizing: content-box;
+  height: 0;
+  margin: 0;
+  padding: 7px 0;
   border-radius: 3px;
   background: transparent;
-  transition: background 0.12s, height 0.12s;
+  transition: background 0.12s;
 }
 
 .drop-slot-active {
-  height: 10px;
-  background: rgba(78, 205, 196, 0.5);
+  background: rgba(78, 205, 196, 0.6);
 }
 
 .code-block-item {
@@ -1498,13 +1498,12 @@ body {
     min-height: 40px;
   }
 
-  /* Bigger invisible hit-area for the insertion slots, since precisely
-     targeting a thin line with a finger is the hard part of nesting a
-     block into a container on touch. */
+  /* Bigger hit-area for the insertion slots, since precisely targeting a
+     thin line with a finger is the hard part of nesting a block into a
+     container on touch. box-sizing: content-box is set on .drop-slot
+     itself, so this padding purely adds to the target size. */
   .drop-slot {
-    padding: 10px 0;
-    margin-top: -10px;
-    margin-bottom: -10px;
+    padding: 14px 0;
   }
 
   .btn {
