@@ -602,8 +602,8 @@ body {
 }
 
 .blocks-list {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
   gap: 8px;
 }
 
@@ -660,40 +660,59 @@ body {
 }
 
 /* ============ Code Workspace ============ */
+/* A single ordered vertical program (Scratch/SPIKE style): blocks stack
+   top-to-bottom in normal document flow. No absolute positioning, so a
+   block can never render on top of / hide another block. */
 
 .code-workspace {
   background: #0a1929;
-  border: 2px dashed #333;
+  border: 2px solid #333;
   border-radius: 6px;
   padding: 12px;
   flex: 1;
-  overflow: auto;
+  overflow-y: auto;
+  overflow-x: hidden;
   margin: 12px 0 12px 0;
-  position: relative;
-  min-height: 400px;
+  display: flex;
+  flex-direction: column;
+  min-height: 200px;
   width: 100%;
-  transition: all 0.2s;
+  transition: border-color 0.2s, background 0.2s;
 }
 
 .code-workspace:hover {
   border-color: #4ecdc4;
-  background: rgba(10, 25, 41, 0.8);
 }
 
 .empty-workspace {
   display: flex;
   align-items: center;
   justify-content: center;
-  height: 100%;
   color: #555;
   font-size: 14px;
   text-align: center;
   font-style: italic;
-  min-height: 200px;
+  padding: 24px 0;
 }
 
+/* A thin, always-present drop target between blocks. Padding (rather than
+   height alone) keeps the hit area comfortable for touch without making the
+   line itself look thick. */
+.drop-slot {
+  height: 4px;
+  margin: 4px 0;
+  padding: 6px 0;
+  margin-top: -6px;
+  margin-bottom: -6px;
+  border-radius: 3px;
+  background: transparent;
+  transition: background 0.12s, height 0.12s;
+}
 
-/* Remove .code-blocks-display flex column, not needed for absolute layout */
+.drop-slot-active {
+  height: 10px;
+  background: rgba(78, 205, 196, 0.5);
+}
 
 .code-block-item {
   display: flex;
@@ -704,7 +723,13 @@ body {
   border-left: 4px solid #00d4ff;
   border-radius: 4px;
   padding: 10px 12px;
+  cursor: grab;
   animation: slideIn 0.2s;
+}
+
+.code-block-item:active {
+  cursor: grabbing;
+  opacity: 0.85;
 }
 
 /* Nested blocks should have slightly different styling */
@@ -968,18 +993,6 @@ body {
   opacity: 0.8;
 }
 
-.code-workspace {
-  border: 2px dashed transparent;
-  border-radius: 8px;
-  transition: all 0.2s;
-  min-height: 200px;
-  background: rgba(0, 0, 0, 0.2);
-}
-
-.code-workspace:hover {
-  background: rgba(0, 0, 0, 0.3);
-}
-
 /* ============ Scrollbars ============ */
 ::-webkit-scrollbar {
   width: 8px;
@@ -1024,14 +1037,12 @@ body {
   margin-bottom: 8px;
 }
 
-/* Top-level blocks get absolute positioning from inline styles in React */
-/* Nested blocks in children-list should be relative and indented */
+.code-block-wrapper {
+  margin-bottom: 0;
+}
+
 .children-list .code-block-wrapper {
-  position: relative !important;
-  left: 0 !important;
-  top: 0 !important;
-  margin-left: 8px;
-  margin-bottom: 8px;
+  margin-left: 4px;
 }
 
 .container-block {
@@ -1039,7 +1050,6 @@ body {
   border: 2px solid #ffe66d;
   border-radius: 8px;
   padding-bottom: 0;
-  position: relative;
 }
 
 .container-body {
@@ -1049,29 +1059,19 @@ body {
   border-bottom: 2px solid #ffe66d;
   border-right: 0;
   border-radius: 0 0 6px 0;
-  padding: 16px 12px 12px 20px;
+  padding: 10px 10px 6px 16px;
   margin-top: 0;
 }
 
 .children-list {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  min-height: 50px;
+  min-height: 20px;
   margin-bottom: 0;
-  padding: 12px 0;
+  padding: 0;
   border: none;
   border-radius: 0;
-  transition: all 0.2s;
-  position: relative;
 }
-
-.children-list:hover {
-  background: rgba(78, 205, 196, 0.02);
-}
-
-
-
 .container-actions {
   display: flex;
   flex-direction: column;
@@ -1442,6 +1442,11 @@ body {
   border-color: #e2e5ea;
 }
 
+/* ---- Drop slots (insertion points between/inside blocks) ---- */
+.robot-builder-modal .drop-slot-active {
+  background: rgba(47, 128, 255, 0.35);
+}
+
 /* ---- Scrollbars ---- */
 .robot-builder-modal ::-webkit-scrollbar-track {
   background: #eef1f5;
@@ -1457,48 +1462,49 @@ body {
 
 /* ============ Touch & Mobile Optimization ============ */
 @media (hover: none), (pointer: coarse) {
-  /* Touch devices: the blocks & code panels must stay scrollable with a
-     finger. Picking a block up for drag-and-drop is handled in JS via a
-     short long-press (see RobotBuilder.jsx), so a normal swipe here always
-     scrolls the list rather than fighting it. */
-  .blocks-panel,
-  .code-panel {
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
-    touch-action: pan-y;
+  /* The blocks library is a compact, static grid that fits without
+     scrolling, and touching a block picks it up immediately - no
+     long-press needed (see RobotBuilder.jsx). The code workspace can
+     still grow long, so it keeps normal touch-scrolling from any empty
+     area between blocks. */
+  .blocks-panel {
+    overflow: visible;
   }
 
-  .blocks-list,
-  .code-workspace,
-  .block-button,
-  .code-block-item {
-    touch-action: pan-y;
+  .code-panel,
+  .code-workspace {
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
   }
 
   .block-button,
   .block-label,
-  .code-workspace,
-  .code-block-item {
+  .code-block-item,
+  .block-content {
     -webkit-user-select: none;
     user-select: none;
     -webkit-touch-callout: none;
   }
 
   .block-button,
-  .remove-btn,
-  .mini-add-btn {
-    padding: 14px 16px;
+  .remove-btn {
+    padding: 12px 14px;
     min-height: 44px;
     min-width: 44px;
   }
 
-  .block-button {
-    padding: 14px;
+  .code-block-item {
+    padding: 12px 14px;
+    min-height: 40px;
   }
 
-  .code-block-item {
-    padding: 14px 16px;
-    min-height: 44px;
+  /* Bigger invisible hit-area for the insertion slots, since precisely
+     targeting a thin line with a finger is the hard part of nesting a
+     block into a container on touch. */
+  .drop-slot {
+    padding: 10px 0;
+    margin-top: -10px;
+    margin-bottom: -10px;
   }
 
   .btn {

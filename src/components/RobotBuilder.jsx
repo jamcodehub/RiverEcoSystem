@@ -1,12 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 
-// A quick tap-and-drag on a block should scroll the list like any other
-// touch surface. Only a brief hold (no real finger movement) picks the
-// block up for dragging - this mirrors how Scratch/Blockly-style block
-// editors resolve the "scroll vs. drag" ambiguity on touch screens.
-const LONG_PRESS_MS = 150;
-const MOVE_CANCEL_PX = 10;
-
+// ============================================================================
+// Block definitions
+// ============================================================================
 const AVAILABLE_BLOCKS = [
   {
     id: 'sensor-mosquito',
@@ -14,7 +10,7 @@ const AVAILABLE_BLOCKS = [
     description: 'Detect mosquito fish nearby',
     category: 'sensor',
     code: 'if sensor <mosquito_fish>:',
-    canContain: ['motor', 'control', 'wait'],
+    canContain: ['motor', 'control'],
     isContainer: true,
   },
   {
@@ -55,7 +51,7 @@ const AVAILABLE_BLOCKS = [
     description: 'Run continuously',
     category: 'control',
     code: 'repeat forever:',
-    canContain: ['sensor', 'motor', 'control', 'wait'],
+    canContain: ['sensor', 'motor', 'control'],
     isContainer: true,
   },
   {
@@ -64,7 +60,7 @@ const AVAILABLE_BLOCKS = [
     description: 'Repeat actions 3 times',
     category: 'control',
     code: 'repeat 3 times:',
-    canContain: ['motor', 'control', 'wait'],
+    canContain: ['motor', 'control'],
     isContainer: true,
   },
 ];
@@ -74,73 +70,137 @@ const ROBOT_COLORS = [
   '#AA96DA', '#FCBAD3', '#A8D8EA', '#FFA07A', '#98D8C8'
 ];
 
+// ============================================================================
+// Pure tree helpers - the whole program is a tree of block instances.
+// Every instance gets a stable instanceId when it's created, so blocks can be
+// found/removed/inserted anywhere in the tree without relying on brittle
+// (parentIndex, childIndex) coordinates that only worked one level deep.
+// ============================================================================
+let uidCounter = 0;
+const genId = () => `blk_${Date.now().toString(36)}_${(uidCounter++).toString(36)}`;
+
+const createInstance = (blockDef) => ({
+  ...blockDef,
+  instanceId: genId(),
+  ...(blockDef.isContainer ? { children: [] } : {}),
+});
+
+const findNode = (nodes, id) => {
+  for (const n of nodes) {
+    if (n.instanceId === id) return n;
+    if (n.children) {
+      const found = findNode(n.children, id);
+      if (found) return found;
+    }
+  }
+  return null;
+};
+
+// Where a node currently lives: { parentId, index } (parentId null = top level)
+const findLocation = (nodes, id, parentId = null) => {
+  for (let i = 0; i < nodes.length; i++) {
+    const n = nodes[i];
+    if (n.instanceId === id) return { parentId, index: i };
+    if (n.children) {
+      const found = findLocation(n.children, id, n.instanceId);
+      if (found) return found;
+    }
+  }
+  return null;
+};
+
+// Does `node`'s subtree contain a descendant with this instanceId?
+const containsDescendant = (node, id) => {
+  if (!node.children) return false;
+  for (const child of node.children) {
+    if (child.instanceId === id || containsDescendant(child, id)) return true;
+  }
+  return false;
+};
+
+// Returns [newTree, removedNode]
+const removeNode = (nodes, id) => {
+  let removed = null;
+  const result = [];
+  for (const n of nodes) {
+    if (n.instanceId === id) {
+      removed = n;
+      continue;
+    }
+    if (n.children) {
+      const [newChildren, childRemoved] = removeNode(n.children, id);
+      if (childRemoved) removed = childRemoved;
+      result.push({ ...n, children: newChildren });
+    } else {
+      result.push(n);
+    }
+  }
+  return [result, removed];
+};
+
+// Insert `node` into the list under `containerId` (null = top level) at `index`.
+const insertNode = (nodes, containerId, index, node) => {
+  if (containerId === null) {
+    const copy = [...nodes];
+    copy.splice(Math.max(0, Math.min(index, copy.length)), 0, node);
+    return copy;
+  }
+  return nodes.map(n => {
+    if (n.instanceId === containerId) {
+      const children = [...(n.children || [])];
+      children.splice(Math.max(0, Math.min(index, children.length)), 0, node);
+      return { ...n, children };
+    }
+    if (n.children) {
+      return { ...n, children: insertNode(n.children, containerId, index, node) };
+    }
+    return n;
+  });
+};
+
+const generatePython = (blocks, indent = 0) => {
+  let code = '';
+  blocks.forEach(block => {
+    code += '  '.repeat(indent) + block.code + '\n';
+    if (block.children && block.children.length > 0) {
+      code += generatePython(block.children, indent + 1);
+    }
+  });
+  return code;
+};
+
+const getBlockColor = (category) => {
+  switch (category) {
+    case 'sensor': return '#ff6b6b';
+    case 'motor': return '#4ecdc4';
+    case 'control': return '#ffe66d';
+    default: return '#95a5a6';
+  }
+};
+
 const RobotBuilder = ({ onDeploy, onClose, robotPlans, setRobotPlans, activeRobotId, setActiveRobotId }) => {
-  const [draggedBlock, setDraggedBlock] = useState(null);
-
-  // Custom Touch Drag State for iPad Safari Support (drives the ghost block UI)
-  const [touchDragState, setTouchDragState] = useState(null);
-
-  // Mutable, non-rendering copy of the touch gesture in progress. Using a
-  // ref (rather than only the state above) lets the native touchmove/touchend
-  // listeners below read the latest position without being recreated on
-  // every frame, and lets us tell a scroll apart from a drag before any
-  // re-render happens.
-  const touchStateRef = useRef(null);
-  const modalRef = useRef(null);
-
   const robots = robotPlans;
   const setRobots = setRobotPlans;
   const activeRobot = robots.find(r => r.id === activeRobotId);
 
-  // Native (non-passive) touch listeners so preventDefault() reliably takes
-  // over the gesture once a block is actually picked up - React's synthetic
-  // touch handlers aren't guaranteed non-passive, so calling preventDefault
-  // there can silently no-op on some browsers/versions.
+  // What's currently being dragged (mouse or touch):
+  //   { kind: 'new', blockDef }              - a fresh block from the library
+  //   { kind: 'move', instanceId }           - an existing block being relocated
+  const [dragPayload, setDragPayload] = useState(null);
+  const [hoveredSlotKey, setHoveredSlotKey] = useState(null);
+  // Floating preview shown under the finger while touch-dragging.
+  const [touchGhost, setTouchGhost] = useState(null);
+
+  const touchDragRef = useRef(null); // { payload, offsetX, offsetY, x, y }
+  const modalRef = useRef(null);
+
+  // Kept in a ref so the native (mount-once) touch listeners below always act
+  // on whichever robot is active right now, not whichever was active when
+  // they were first attached.
+  const activeRobotIdRef = useRef(activeRobotId);
   useEffect(() => {
-    const el = modalRef.current;
-    if (!el) return;
-
-    const onTouchMoveNative = (e) => {
-      const st = touchStateRef.current;
-      if (!st) return;
-      const touch = e.touches[0];
-      if (!touch) return;
-
-      if (!st.dragging) {
-        const dx = Math.abs(touch.clientX - st.startX);
-        const dy = Math.abs(touch.clientY - st.startY);
-        if (dx > MOVE_CANCEL_PX || dy > MOVE_CANCEL_PX) {
-          // The finger moved before the long-press fired - this is a scroll,
-          // not a drag. Cancel the pending pickup and let the browser scroll.
-          clearTimeout(st.timer);
-          touchStateRef.current = null;
-        }
-        return;
-      }
-
-      // A block is actively being dragged - take over the gesture so the
-      // page doesn't scroll underneath it.
-      e.preventDefault();
-      st.x = touch.clientX;
-      st.y = touch.clientY;
-      setTouchDragState(prev => (prev ? { ...prev, x: touch.clientX, y: touch.clientY } : prev));
-    };
-
-    const onTouchEndNative = () => {
-      resolveTouchDrop();
-    };
-
-    el.addEventListener('touchmove', onTouchMoveNative, { passive: false });
-    el.addEventListener('touchend', onTouchEndNative, { passive: true });
-    el.addEventListener('touchcancel', onTouchEndNative, { passive: true });
-
-    return () => {
-      el.removeEventListener('touchmove', onTouchMoveNative);
-      el.removeEventListener('touchend', onTouchEndNative);
-      el.removeEventListener('touchcancel', onTouchEndNative);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    activeRobotIdRef.current = activeRobotId;
+  }, [activeRobotId]);
 
   const createNewRobot = () => {
     const newId = Math.max(...robots.map(r => r.id), 0) + 1;
@@ -164,76 +224,88 @@ const RobotBuilder = ({ onDeploy, onClose, robotPlans, setRobotPlans, activeRobo
     setActiveRobotId(updated[0].id);
   };
 
-  const updateRobotCode = (code) => {
-    setRobots(robots.map(r => 
-      r.id === activeRobotId ? { ...r, code } : r
-    ));
-  };
-
   const updateRobotColor = (color) => {
-    setRobots(robots.map(r => 
+    setRobots(robots.map(r =>
       r.id === activeRobotId ? { ...r, color } : r
     ));
   };
 
-  const handleAddBlock = (block, x = 20, y = 20) => {
-    if (activeRobot) {
-      updateRobotCode([...activeRobot.code, { ...block, children: [], x, y }]);
-    }
-  };
-
-  const handleRemoveBlock = (index) => {
-    if (activeRobot) {
-      updateRobotCode(activeRobot.code.filter((_, i) => i !== index));
-    }
-  };
-
-  const handleMoveBlock = (index, x, y) => {
-    if (activeRobot) {
-      const updated = [...activeRobot.code];
-      updated[index] = { ...updated[index], x, y };
-      updateRobotCode(updated);
-    }
-  };
-
-  const handleAddChildBlock = (containerLocator, block) => {
-    if (activeRobot) {
-      const updated = [...activeRobot.code];
-      let container;
-      if (containerLocator.isTopLevel) {
-        container = updated[containerLocator.index];
-      } else {
-        container = updated[containerLocator.parentIndex].children[containerLocator.childIndex];
-      }
-      if (!container.children) {
-        container.children = [];
-      }
-      container.children.push({ ...block, children: [] });
-      updateRobotCode(updated);
-    }
-  };
-
-  const handleRemoveChildBlock = (parentIndex, childIndex) => {
-    if (activeRobot) {
-      const updated = [...activeRobot.code];
-      updated[parentIndex].children.splice(childIndex, 1);
-      updateRobotCode(updated);
-    }
-  };
-
   const handleClearCode = () => {
-    updateRobotCode([]);
+    setRobots(current => current.map(r =>
+      r.id === activeRobotIdRef.current ? { ...r, code: [] } : r
+    ));
   };
 
-  const generatePython = (blocks, indent = 0) => {
-    let code = '';
-    blocks.forEach(block => {
-      code += '  '.repeat(indent) + block.code + '\n';
-      if (block.children && block.children.length > 0) {
-        code += generatePython(block.children, indent + 1);
+  const handleRemoveNode = (instanceId) => {
+    setRobots(current => current.map(r => {
+      if (r.id !== activeRobotIdRef.current) return r;
+      const [newTree] = removeNode(r.code, instanceId);
+      return { ...r, code: newTree };
+    }));
+  };
+
+  // The single source of truth for "drop this thing at this spot". Reads the
+  // active robot fresh via the ref and writes with a functional update, so
+  // it stays correct even when called from a touch listener that was
+  // attached long before this specific drop happened.
+  const performDrop = (containerId, index, payload) => {
+    if (!payload) return;
+
+    setRobots(current => current.map(r => {
+      if (r.id !== activeRobotIdRef.current) return r;
+
+      let tree = r.code;
+      let nodeToInsert;
+      let targetIndex = index;
+
+      if (payload.kind === 'move') {
+        const { instanceId } = payload;
+        if (instanceId === containerId) return r; // dropped onto itself
+
+        const original = findNode(tree, instanceId);
+        if (!original) return r;
+
+        // Can't drop a container into its own descendant.
+        if (containerId !== null && containsDescendant(original, containerId)) {
+          return r;
+        }
+
+        // Does the target container accept this category of block?
+        if (containerId !== null) {
+          const containerNode = findNode(tree, containerId);
+          if (!containerNode || !containerNode.canContain ||
+              !containerNode.canContain.includes(original.category)) {
+            return r;
+          }
+        }
+
+        const loc = findLocation(tree, instanceId);
+        const [treeAfterRemoval, removed] = removeNode(tree, instanceId);
+        if (!removed) return r;
+        tree = treeAfterRemoval;
+        nodeToInsert = removed;
+
+        // Removing an earlier sibling from the same list shifts everything
+        // after it back by one - correct the target index to compensate.
+        if (loc && loc.parentId === containerId && loc.index < index) {
+          targetIndex = index - 1;
+        }
+      } else if (payload.kind === 'new') {
+        if (containerId !== null) {
+          const containerNode = findNode(tree, containerId);
+          if (!containerNode || !containerNode.canContain ||
+              !containerNode.canContain.includes(payload.blockDef.category)) {
+            return r;
+          }
+        }
+        nodeToInsert = createInstance(payload.blockDef);
+      } else {
+        return r;
       }
-    });
-    return code;
+
+      const newTree = insertNode(tree, containerId, targetIndex, nodeToInsert);
+      return { ...r, code: newTree };
+    }));
   };
 
   const handleDeploy = () => {
@@ -242,243 +314,153 @@ const RobotBuilder = ({ onDeploy, onClose, robotPlans, setRobotPlans, activeRobo
     onDeploy(pythonCode.split('\n').filter(l => l.trim()), activeRobot.color);
   };
 
-  // --- STANDARD DESKTOP DRAG EVENTS ---
-  const handleDragStart = (e, block) => {
-    setDraggedBlock(block);
+  // ---- Desktop mouse drag (HTML5 DnD) ----
+  const startMouseDrag = (e, payload, effect) => {
+    e.dataTransfer.effectAllowed = effect;
+    setDragPayload(payload);
   };
 
-  const handleDragOver = (e) => {
-    e.preventDefault();
-    e.currentTarget.style.borderColor = '#4ECDC4';
-    e.currentTarget.style.backgroundColor = 'rgba(78, 205, 196, 0.1)';
-  };
-
-  const handleDragLeave = (e) => {
-    e.currentTarget.style.borderColor = 'transparent';
-    e.currentTarget.style.backgroundColor = 'transparent';
-  };
-
-  const handleDrop = (e) => {
-    e.preventDefault();
-    e.currentTarget.style.borderColor = 'transparent';
-    e.currentTarget.style.backgroundColor = 'transparent';
-    if (draggedBlock) {
-      if (draggedBlock.originalIndex === undefined) {
-        const rect = e.currentTarget.getBoundingClientRect();
-        const x = e.clientX - rect.left;
-        const y = e.clientY - rect.top;
-        handleAddBlock(draggedBlock, x, y);
-      }
-      setDraggedBlock(null);
-    }
-  };
-
-  const handleDropOnContainer = (e, containerLocator) => {
-    e.preventDefault();
+  // ---- Touch drag - instantaneous, no long-press ----
+  // The blocks library is a static (non-scrolling) panel and the workspace
+  // itself scrolls from empty space, not from the blocks, so there's no
+  // scroll-vs-drag ambiguity to resolve here: touching a block always picks
+  // it up immediately.
+  const handleTouchStart = (e, payload) => {
     e.stopPropagation();
-    e.currentTarget.style.borderColor = 'transparent';
-    e.currentTarget.style.backgroundColor = 'transparent';
-    if (draggedBlock && activeRobot) {
-      if (draggedBlock.originalIndex !== undefined && draggedBlock.originalIndex === containerLocator.index) {
-        setDraggedBlock(null);
-        return;
-      }
-      if (draggedBlock.originalIndex === undefined) {
-        handleAddChildBlock(containerLocator, draggedBlock);
-      }
-      setDraggedBlock(null);
-    }
-  };
-
-  const handleContainerDragOver = (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    e.currentTarget.style.backgroundColor = 'rgba(78, 205, 196, 0.2)';
-  };
-
-  const handleContainerDragLeave = (e) => {
-    e.currentTarget.style.backgroundColor = 'transparent';
-  };
-
-  // --- IPAD SAFARI TOUCH EVENTS ---
-  // Starting a touch never immediately grabs the block - that would fight
-  // with finger-scrolling. Instead we arm a short timer; if the finger is
-  // still roughly in place when it fires, the block is picked up. If the
-  // finger moves first (see onTouchMoveNative above), it's treated as a
-  // normal scroll and the timer is cancelled.
-  const handleTouchStart = (e, block, source, originalIndex = null) => {
     const touch = e.touches[0];
     const rect = e.currentTarget.getBoundingClientRect();
-
-    if (touchStateRef.current?.timer) {
-      clearTimeout(touchStateRef.current.timer);
-    }
-
-    const startX = touch.clientX;
-    const startY = touch.clientY;
     const offsetX = touch.clientX - rect.left;
     const offsetY = touch.clientY - rect.top;
 
-    const timer = setTimeout(() => {
-      if (!touchStateRef.current) return;
-      touchStateRef.current.dragging = true;
-      setTouchDragState({
-        block,
-        source,
-        originalIndex,
-        offsetX,
-        offsetY,
-        x: startX,
-        y: startY,
-      });
-    }, LONG_PRESS_MS);
-
-    touchStateRef.current = {
-      block,
-      source,
-      originalIndex,
-      startX,
-      startY,
+    touchDragRef.current = {
+      payload,
       offsetX,
       offsetY,
-      x: startX,
-      y: startY,
-      dragging: false,
-      timer,
+      x: touch.clientX,
+      y: touch.clientY,
     };
+
+    setDragPayload(payload);
+    setTouchGhost({
+      label: payload.kind === 'new' ? payload.blockDef.label : payload.node.label,
+      category: payload.kind === 'new' ? payload.blockDef.category : payload.node.category,
+      x: touch.clientX,
+      y: touch.clientY,
+      offsetX,
+      offsetY,
+    });
   };
 
-  const resolveTouchDrop = () => {
-    const st = touchStateRef.current;
-    if (!st) return;
+  useEffect(() => {
+    const el = modalRef.current;
+    if (!el) return;
 
-    if (st.timer) clearTimeout(st.timer);
+    const onTouchMoveNative = (e) => {
+      const st = touchDragRef.current;
+      if (!st) return;
+      const touch = e.touches[0];
+      if (!touch) return;
 
-    if (st.dragging) {
-      const { block, source, originalIndex, x, y } = st;
+      e.preventDefault();
+      st.x = touch.clientX;
+      st.y = touch.clientY;
+      setTouchGhost(prev => (prev ? { ...prev, x: touch.clientX, y: touch.clientY } : prev));
 
-      // Find what is under the finger (ghost is pointer-events: none, so it won't block this)
-      const dropTarget = document.elementFromPoint(x, y);
+      const el2 = document.elementFromPoint(touch.clientX, touch.clientY);
+      const slotEl = el2 ? el2.closest('.drop-slot') : null;
+      if (slotEl) {
+        const containerId = slotEl.dataset.slotContainer === 'root' ? null : slotEl.dataset.slotContainer;
+        const index = parseInt(slotEl.dataset.slotIndex, 10);
+        setHoveredSlotKey(`${containerId ?? 'root'}:${index}`);
+      } else {
+        setHoveredSlotKey(null);
+      }
+    };
 
-      if (dropTarget) {
-        const containerDropZone = dropTarget.closest('.children-list');
-        const workspace = dropTarget.closest('.code-workspace');
-
-        if (containerDropZone) {
-          const isTop = containerDropZone.dataset.istoplevel === 'true';
-          const idx = parseInt(containerDropZone.dataset.index, 10);
-          const pIdx = parseInt(containerDropZone.dataset.parentindex, 10);
-          const cIdx = parseInt(containerDropZone.dataset.childindex, 10);
-
-          const locator = isTop
-            ? { isTopLevel: true, index: idx }
-            : { isTopLevel: false, parentIndex: pIdx, childIndex: cIdx };
-
-          if (source === 'workspace' && originalIndex === locator.index) {
-            // Cannot drop a container into itself
-          } else if (source === 'library') {
-            handleAddChildBlock(locator, block);
-          }
-        } else if (workspace) {
-          const rect = workspace.getBoundingClientRect();
-          const relativeX = x - rect.left;
-          const relativeY = y - rect.top;
-
-          if (source === 'library') {
-            handleAddBlock(block, relativeX, relativeY);
-          } else if (source === 'workspace' && originalIndex !== null) {
-            handleMoveBlock(originalIndex, relativeX, relativeY);
-          }
+    const onTouchEndNative = () => {
+      const st = touchDragRef.current;
+      if (st) {
+        const el2 = document.elementFromPoint(st.x, st.y);
+        const slotEl = el2 ? el2.closest('.drop-slot') : null;
+        if (slotEl) {
+          const containerId = slotEl.dataset.slotContainer === 'root' ? null : slotEl.dataset.slotContainer;
+          const index = parseInt(slotEl.dataset.slotIndex, 10);
+          performDrop(containerId, index, st.payload);
         }
       }
-    }
+      touchDragRef.current = null;
+      setDragPayload(null);
+      setTouchGhost(null);
+      setHoveredSlotKey(null);
+    };
 
-    touchStateRef.current = null;
-    setTouchDragState(null);
-  };
+    el.addEventListener('touchmove', onTouchMoveNative, { passive: false });
+    el.addEventListener('touchend', onTouchEndNative, { passive: true });
+    el.addEventListener('touchcancel', onTouchEndNative, { passive: true });
 
-  const getBlockColor = (category) => {
-    switch (category) {
-      case 'sensor': return '#ff6b6b';
-      case 'motor': return '#4ecdc4';
-      case 'control': return '#ffe66d';
-      default: return '#95a5a6';
-    }
-  };
+    return () => {
+      el.removeEventListener('touchmove', onTouchMoveNative);
+      el.removeEventListener('touchend', onTouchEndNative);
+      el.removeEventListener('touchcancel', onTouchEndNative);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  const renderCodeBlock = (block, index, parentIndex = null, childIndex = null) => {
-    const isContainer = block.isContainer;
-    const isTopLevel = parentIndex === null;
-    
+  // ---- A drop target between (or at the start/end of) a list of blocks ----
+  const renderSlot = (containerId, index) => {
+    const key = `${containerId ?? 'root'}:${index}`;
+    const isActive = hoveredSlotKey === key && dragPayload;
     return (
       <div
-        key={`${parentIndex}-${index}`}
-        className="code-block-wrapper"
-        style={isTopLevel ? { position: 'absolute', left: `${block.x || 20}px`, top: `${block.y || 20}px` } : {}}
-        draggable={isTopLevel}
-        onDragStart={(e) => {
-          if (isTopLevel) {
-            e.dataTransfer.effectAllowed = 'move';
-            setDraggedBlock({ ...block, originalIndex: index });
-          }
+        key={`slot-${key}`}
+        className={`drop-slot${isActive ? ' drop-slot-active' : ''}`}
+        data-slot-container={containerId ?? 'root'}
+        data-slot-index={index}
+        onDragOver={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          setHoveredSlotKey(key);
         }}
-        onDragEnd={(e) => {
-          if (isTopLevel && e.dataTransfer.dropEffect === 'move') {
-            const codespace = document.querySelector('.code-workspace');
-            if (codespace) {
-              const rect = codespace.getBoundingClientRect();
-              const x = Math.max(0, e.clientX - rect.left);
-              const y = Math.max(0, e.clientY - rect.top);
-              handleMoveBlock(index, x, y);
-            }
-          }
+        onDragLeave={() => setHoveredSlotKey(prev => (prev === key ? null : prev))}
+        onDrop={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          performDrop(containerId, index, dragPayload);
+          setDragPayload(null);
+          setHoveredSlotKey(null);
         }}
-        // iPad Touch Support
-        onTouchStart={(e) => {
-          if (isTopLevel) handleTouchStart(e, block, 'workspace', index);
-        }}
-      >
+      />
+    );
+  };
+
+  const renderBlockRow = (node, displayIndex) => {
+    const isContainer = !!node.isContainer;
+    return (
+      <div className="code-block-wrapper" key={node.instanceId}>
         <div
-          className={`code-block-item category-${block.category} ${isContainer ? 'container-block' : ''}`}
-          style={{ borderLeftColor: getBlockColor(block.category) }}
+          className={`code-block-item category-${node.category} ${isContainer ? 'container-block' : ''}`}
+          style={{ borderLeftColor: getBlockColor(node.category) }}
+          draggable
+          onDragStart={(e) => startMouseDrag(e, { kind: 'move', instanceId: node.instanceId, node }, 'move')}
+          onDragEnd={() => setDragPayload(null)}
+          onTouchStart={(e) => handleTouchStart(e, { kind: 'move', instanceId: node.instanceId, node })}
         >
-          <span className="block-index">{index + 1}</span>
-          <span className="block-content">{block.label}</span>
+          <span className="block-index">{displayIndex}</span>
+          <span className="block-content">{node.label}</span>
           <button
             className="remove-btn"
-            onClick={() => parentIndex !== null 
-              ? handleRemoveChildBlock(parentIndex, childIndex)
-              : handleRemoveBlock(index)
-            }
+            onClick={() => handleRemoveNode(node.instanceId)}
+            onTouchStart={(e) => e.stopPropagation()}
             title="Remove this block"
-            // Prevent touch drag from firing when tapping remove
-            onTouchStart={(e) => e.stopPropagation()} 
           >
             &times;
           </button>
         </div>
-        
+
         {isContainer && (
           <div className="container-body">
-            <div
-              className="children-list"
-              // Data attributes used by touch detection
-              data-istoplevel={isTopLevel}
-              data-index={index}
-              data-parentindex={parentIndex !== null ? parentIndex : ""}
-              data-childindex={childIndex !== null ? childIndex : ""}
-              onDragOver={handleContainerDragOver}
-              onDragLeave={handleContainerDragLeave}
-              onDrop={(e) => {
-                const containerLocator = isTopLevel
-                  ? { isTopLevel: true, index }
-                  : { isTopLevel: false, parentIndex, childIndex };
-                handleDropOnContainer(e, containerLocator);
-              }}
-            >
-              {block.children && block.children.length > 0 && (
-                block.children.map((child, cIdx) => renderCodeBlock(child, cIdx + 1, parentIndex !== null ? parentIndex : index, cIdx))
-              )}
+            <div className="children-list">
+              {renderBlockList(node.children || [], node.instanceId)}
             </div>
           </div>
         )}
@@ -486,38 +468,55 @@ const RobotBuilder = ({ onDeploy, onClose, robotPlans, setRobotPlans, activeRobo
     );
   };
 
+  const renderBlockList = (nodes, containerId) => (
+    <React.Fragment>
+      {renderSlot(containerId, 0)}
+      {nodes.map((node, i) => (
+        <React.Fragment key={node.instanceId}>
+          {renderBlockRow(node, i + 1)}
+          {renderSlot(containerId, i + 1)}
+        </React.Fragment>
+      ))}
+    </React.Fragment>
+  );
+
+  const renderLibraryBlock = (block, className) => (
+    <div
+      key={block.id}
+      className={`block-button ${className}`}
+      draggable
+      onDragStart={(e) => startMouseDrag(e, { kind: 'new', blockDef: block }, 'copy')}
+      onDragEnd={() => setDragPayload(null)}
+      onTouchStart={(e) => handleTouchStart(e, { kind: 'new', blockDef: block })}
+      title={block.description}
+    >
+      <div className="block-label">{block.label}</div>
+    </div>
+  );
+
   return (
     <div
       ref={modalRef}
       className="modal-overlay"
       onClick={onClose}
     >
-      {/* GHOST ELEMENT FOR IPAD TOUCH DRAGGING */}
-      {touchDragState && (
-        <div 
+      {/* Floating preview shown under the finger while touch-dragging */}
+      {touchGhost && (
+        <div
           style={{
             position: 'fixed',
-            left: `${touchDragState.x - touchDragState.offsetX}px`,
-            top: `${touchDragState.y - touchDragState.offsetY}px`,
+            left: `${touchGhost.x - touchGhost.offsetX}px`,
+            top: `${touchGhost.y - touchGhost.offsetY}px`,
             pointerEvents: 'none',
             zIndex: 9999,
-            opacity: 0.8,
-            boxShadow: '0 10px 25px rgba(0,0,0,0.2)'
+            opacity: 0.9,
           }}
         >
-          <div 
-            className={`block-button ${touchDragState.block.category}-block`} 
-            style={{ 
-              margin: 0,
-              padding: '12px',
-              background: 'white',
-              border: `2px solid ${getBlockColor(touchDragState.block.category)}`,
-              borderRadius: '8px',
-              fontWeight: 'bold',
-              color: '#333'
-            }}
+          <div
+            className={`block-button ${touchGhost.category}-block`}
+            style={{ margin: 0, boxShadow: '0 10px 25px rgba(0,0,0,0.25)' }}
           >
-            {touchDragState.block.label}
+            <div className="block-label">{touchGhost.label}</div>
           </div>
         </div>
       )}
@@ -563,7 +562,7 @@ const RobotBuilder = ({ onDeploy, onClose, robotPlans, setRobotPlans, activeRobo
               + New
             </button>
           </div>
-          
+
           {activeRobot && (
             <div className="robot-settings" style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: 0 }}>
               <label style={{ margin: 0, fontSize: '14px' }}>Color:</label>
@@ -587,100 +586,54 @@ const RobotBuilder = ({ onDeploy, onClose, robotPlans, setRobotPlans, activeRobo
         </div>
 
         <div className="builder-container fullscreen-layout">
-          {/* LEFT: Available Blocks */}
+          {/* LEFT: Available Blocks - static, no scrolling */}
           <div className="blocks-panel">
-            {/* Removed the "Blocks Library" header and description to save vertical space */}
-            
             <div className="block-categories">
-              {/* Sensor Blocks */}
               <div className="block-category">
-                <h4 className="category-title" style={{ color: '#ff6b6b' }}>
-                  Sensors
-                </h4>
+                <h4 className="category-title" style={{ color: '#ff6b6b' }}>Sensors</h4>
                 <div className="blocks-list">
-                  {AVAILABLE_BLOCKS.filter(b => b.category === 'sensor').map(block => (
-                    <div
-                      key={block.id}
-                      className="block-button sensor-block"
-                      draggable
-                      onDragStart={(e) => handleDragStart(e, block)}
-                      onTouchStart={(e) => handleTouchStart(e, block, 'library')}
-                      title={block.description}
-                    >
-                      <div className="block-label">{block.label}</div>
-                      {/* block-desc is visually hidden on mobile via the injected CSS */}
-                      <div className="block-desc">{block.description}</div>
-                    </div>
-                  ))}
+                  {AVAILABLE_BLOCKS.filter(b => b.category === 'sensor').map(block =>
+                    renderLibraryBlock(block, 'sensor-block')
+                  )}
                 </div>
               </div>
 
-              {/* Motor Blocks */}
               <div className="block-category">
-                <h4 className="category-title" style={{ color: '#4ecdc4' }}>
-                  Motors
-                </h4>
+                <h4 className="category-title" style={{ color: '#4ecdc4' }}>Motors</h4>
                 <div className="blocks-list">
-                  {AVAILABLE_BLOCKS.filter(b => b.category === 'motor').map(block => (
-                    <div
-                      key={block.id}
-                      className="block-button motor-block"
-                      draggable
-                      onDragStart={(e) => handleDragStart(e, block)}
-                      onTouchStart={(e) => handleTouchStart(e, block, 'library')}
-                      title={block.description}
-                    >
-                      <div className="block-label">{block.label}</div>
-                      <div className="block-desc">{block.description}</div>
-                    </div>
-                  ))}
+                  {AVAILABLE_BLOCKS.filter(b => b.category === 'motor').map(block =>
+                    renderLibraryBlock(block, 'motor-block')
+                  )}
                 </div>
               </div>
 
-              {/* Control Blocks */}
               <div className="block-category">
-                <h4 className="category-title" style={{ color: '#ffe66d' }}>
-                  Control
-                </h4>
+                <h4 className="category-title" style={{ color: '#ffe66d' }}>Control</h4>
                 <div className="blocks-list">
-                  {AVAILABLE_BLOCKS.filter(b => b.category === 'control').map(block => (
-                    <div
-                      key={block.id}
-                      className="block-button control-block"
-                      draggable
-                      onDragStart={(e) => handleDragStart(e, block)}
-                      onTouchStart={(e) => handleTouchStart(e, block, 'library')}
-                      title={block.description}
-                    >
-                      <div className="block-label">{block.label}</div>
-                      <div className="block-desc">{block.description}</div>
-                    </div>
-                  ))}
+                  {AVAILABLE_BLOCKS.filter(b => b.category === 'control').map(block =>
+                    renderLibraryBlock(block, 'control-block')
+                  )}
                 </div>
               </div>
             </div>
           </div>
 
-          {/* RIGHT: Code Workspace */}
+          {/* RIGHT: Code Workspace - a single ordered vertical program, like
+              SPIKE/Scratch: blocks stack top-to-bottom, containers indent
+              their children in place. No manual x/y placement, so a block
+              can never render on top of / hide another block. */}
           <div className="code-panel">
-            {/* Added inline style to compact header spacing */}
             <h3 style={{ margin: '10px 0', fontSize: '16px' }}>Your Robot Code</h3>
 
-            <div
-              className="code-workspace"
-              onDragOver={handleDragOver}
-              onDragLeave={handleDragLeave}
-              onDrop={handleDrop}
-            >
+            <div className="code-workspace">
               {activeRobot && activeRobot.code.length === 0 && (
                 <div className="empty-workspace">
                   <p>Drag blocks from the left to build your program</p>
                 </div>
               )}
-              {activeRobot && activeRobot.code.map((block, index) => renderCodeBlock(block, index))}
+              {activeRobot && renderBlockList(activeRobot.code, null)}
             </div>
 
-            {/* Action Buttons */}
             <div className="builder-actions" style={{ padding: '10px' }}>
               <button
                 className="btn btn-secondary"
