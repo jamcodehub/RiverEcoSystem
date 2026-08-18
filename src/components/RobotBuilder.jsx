@@ -359,6 +359,18 @@ const RobotBuilder = ({ onDeploy, onClose, robotPlans, setRobotPlans, activeRobo
     const el = modalRef.current;
     if (!el) return;
 
+    const resolveListAndSlot = (x, y) => {
+      const el2 = document.elementFromPoint(x, y);
+      const listEl = el2 ? el2.closest('[data-list-id]') : null;
+      if (!listEl) return null;
+      const slot = findNearestSlot(listEl, y);
+      if (!slot) return null;
+      const rawContainerId = listEl.dataset.listId;
+      const containerId = rawContainerId === 'root' ? null : rawContainerId;
+      const index = parseInt(slot.dataset.slotIndex, 10);
+      return { containerId, index };
+    };
+
     const onTouchMoveNative = (e) => {
       const st = touchDragRef.current;
       if (!st) return;
@@ -370,26 +382,16 @@ const RobotBuilder = ({ onDeploy, onClose, robotPlans, setRobotPlans, activeRobo
       st.y = touch.clientY;
       setTouchGhost(prev => (prev ? { ...prev, x: touch.clientX, y: touch.clientY } : prev));
 
-      const el2 = document.elementFromPoint(touch.clientX, touch.clientY);
-      const slotEl = el2 ? el2.closest('.drop-slot') : null;
-      if (slotEl) {
-        const containerId = slotEl.dataset.slotContainer === 'root' ? null : slotEl.dataset.slotContainer;
-        const index = parseInt(slotEl.dataset.slotIndex, 10);
-        setHoveredSlotKey(`${containerId ?? 'root'}:${index}`);
-      } else {
-        setHoveredSlotKey(null);
-      }
+      const target = resolveListAndSlot(touch.clientX, touch.clientY);
+      setHoveredSlotKey(target ? `${target.containerId ?? 'root'}:${target.index}` : null);
     };
 
     const onTouchEndNative = () => {
       const st = touchDragRef.current;
       if (st) {
-        const el2 = document.elementFromPoint(st.x, st.y);
-        const slotEl = el2 ? el2.closest('.drop-slot') : null;
-        if (slotEl) {
-          const containerId = slotEl.dataset.slotContainer === 'root' ? null : slotEl.dataset.slotContainer;
-          const index = parseInt(slotEl.dataset.slotIndex, 10);
-          performDrop(containerId, index, st.payload);
+        const target = resolveListAndSlot(st.x, st.y);
+        if (target) {
+          performDrop(target.containerId, target.index, st.payload);
         }
       }
       touchDragRef.current = null;
@@ -410,7 +412,29 @@ const RobotBuilder = ({ onDeploy, onClose, robotPlans, setRobotPlans, activeRobo
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ---- A drop target between (or at the start/end of) a list of blocks ----
+  // Given a list wrapper element, find whichever of its own (direct) slot
+  // markers is vertically closest to clientY. This is what lets a drop
+  // land anywhere in the list's area - including directly on top of a
+  // block - rather than requiring pixel-precise targeting of a thin gap.
+  const findNearestSlot = (listEl, clientY) => {
+    const slots = listEl.querySelectorAll(':scope > .drop-slot');
+    let closest = null;
+    let closestDist = Infinity;
+    slots.forEach(slot => {
+      const rect = slot.getBoundingClientRect();
+      const mid = rect.top + rect.height / 2;
+      const dist = Math.abs(clientY - mid);
+      if (dist < closestDist) {
+        closestDist = dist;
+        closest = slot;
+      }
+    });
+    return closest;
+  };
+
+  // ---- A visual marker for where a block would land (start/end/between
+  // blocks). Purely visual - the actual drop target is the list wrapper
+  // below, which finds the nearest one of these to the cursor/finger. ----
   const renderSlot = (containerId, index) => {
     const key = `${containerId ?? 'root'}:${index}`;
     const isActive = hoveredSlotKey === key && dragPayload;
@@ -418,21 +442,7 @@ const RobotBuilder = ({ onDeploy, onClose, robotPlans, setRobotPlans, activeRobo
       <div
         key={`slot-${key}`}
         className={`drop-slot${isActive ? ' drop-slot-active' : ''}`}
-        data-slot-container={containerId ?? 'root'}
         data-slot-index={index}
-        onDragOver={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          setHoveredSlotKey(key);
-        }}
-        onDragLeave={() => setHoveredSlotKey(prev => (prev === key ? null : prev))}
-        onDrop={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          performDrop(containerId, index, dragPayload);
-          setDragPayload(null);
-          setHoveredSlotKey(null);
-        }}
       />
     );
   };
@@ -472,8 +482,39 @@ const RobotBuilder = ({ onDeploy, onClose, robotPlans, setRobotPlans, activeRobo
     );
   };
 
+  // The list itself is the real drop target: dragging over ANY part of it
+  // (including directly over a block) finds the nearest slot and previews
+  // the insertion there, matching how Scratch/SPIKE let you drop a block
+  // near where you want it rather than requiring pixel-precise aim.
   const renderBlockList = (nodes, containerId) => (
-    <React.Fragment>
+    <div
+      className="block-list"
+      data-list-id={containerId ?? 'root'}
+      onDragOver={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const slot = findNearestSlot(e.currentTarget, e.clientY);
+        if (slot) {
+          setHoveredSlotKey(`${containerId ?? 'root'}:${slot.dataset.slotIndex}`);
+        }
+      }}
+      onDragLeave={(e) => {
+        // Only clear if the pointer actually left this list (not just moved
+        // into a child element inside it).
+        if (!e.currentTarget.contains(e.relatedTarget)) {
+          setHoveredSlotKey(null);
+        }
+      }}
+      onDrop={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const slot = findNearestSlot(e.currentTarget, e.clientY);
+        const index = slot ? parseInt(slot.dataset.slotIndex, 10) : nodes.length;
+        performDrop(containerId, index, dragPayload);
+        setDragPayload(null);
+        setHoveredSlotKey(null);
+      }}
+    >
       {renderSlot(containerId, 0)}
       {nodes.map((node, i) => (
         <React.Fragment key={node.instanceId}>
@@ -481,7 +522,7 @@ const RobotBuilder = ({ onDeploy, onClose, robotPlans, setRobotPlans, activeRobo
           {renderSlot(containerId, i + 1)}
         </React.Fragment>
       ))}
-    </React.Fragment>
+    </div>
   );
 
   const renderLibraryBlock = (block, className) => (

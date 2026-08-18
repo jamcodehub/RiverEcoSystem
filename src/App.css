@@ -695,6 +695,23 @@ body {
   padding: 24px 0;
 }
 
+/* Wraps each list of blocks (the top-level program, and every container's
+   children). This is the actual drag/drop target - dragover and drop
+   bubble up to it from anywhere inside, including from directly on top of
+   a block, so a drop lands correctly no matter where in the list it's
+   released. The top-level one additionally fills the whole workspace so
+   an empty (or nearly-empty) program is droppable across its full visible
+   area, not just the sliver of space its one slot marker occupies. */
+.block-list {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+}
+
+.code-workspace > .block-list {
+  flex: 1;
+}
+
 /* A thin, always-present drop target between blocks. The app has a global
    box-sizing: border-box reset, which would make padding eat into a fixed
    height instead of adding to it - so this is pinned to content-box
