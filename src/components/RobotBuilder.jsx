@@ -8,7 +8,7 @@ const AVAILABLE_BLOCKS = [
     id: 'sensor-mosquito',
     label: 'if sensor < mosquito_fish >',
     description: 'Detect mosquito fish nearby',
-    category: 'control',
+    category: 'sensor',
     code: 'if sensor <mosquito_fish>:',
     canContain: ['motor', 'control'],
     isContainer: true,
@@ -178,7 +178,7 @@ const getBlockColor = (category) => {
   }
 };
 
-const RobotBuilder = ({ onDeploy, onClose, robotPlans, setRobotPlans, activeRobotId, setActiveRobotId }) => {
+const RobotBuilder = ({ onDeploy, onClose, robotPlans, setRobotPlans, activeRobotId, setActiveRobotId, deployedPlanIds = [] }) => {
   const robots = robotPlans;
   const setRobots = setRobotPlans;
   const activeRobot = robots.find(r => r.id === activeRobotId);
@@ -311,8 +311,10 @@ const RobotBuilder = ({ onDeploy, onClose, robotPlans, setRobotPlans, activeRobo
   const handleDeploy = () => {
     if (!activeRobot) return;
     const pythonCode = generatePython(activeRobot.code);
-    onDeploy(pythonCode.split('\n').filter(l => l.trim()), activeRobot.color);
+    onDeploy(pythonCode.split('\n').filter(l => l.trim()), activeRobot.color, activeRobot.id);
   };
+
+  const isDeployed = !!(activeRobot && deployedPlanIds.includes(activeRobot.id));
 
   // ---- Desktop mouse drag (HTML5 DnD) ----
   // Some browsers (notably Firefox) silently refuse to complete a drag
@@ -635,6 +637,15 @@ const RobotBuilder = ({ onDeploy, onClose, robotPlans, setRobotPlans, activeRobo
           <div className="blocks-panel">
             <div className="block-categories">
               <div className="block-category">
+                <h4 className="category-title" style={{ color: '#ff6b6b' }}>Sensors</h4>
+                <div className="blocks-list">
+                  {AVAILABLE_BLOCKS.filter(b => b.category === 'sensor').map(block =>
+                    renderLibraryBlock(block, 'sensor-block')
+                  )}
+                </div>
+              </div>
+
+              <div className="block-category">
                 <h4 className="category-title" style={{ color: '#4ecdc4' }}>Motors</h4>
                 <div className="blocks-list">
                   {AVAILABLE_BLOCKS.filter(b => b.category === 'motor').map(block =>
@@ -683,8 +694,9 @@ const RobotBuilder = ({ onDeploy, onClose, robotPlans, setRobotPlans, activeRobo
                 onClick={handleDeploy}
                 disabled={!activeRobot || activeRobot.code.length === 0}
                 style={{ backgroundColor: activeRobot ? activeRobot.color : '#4ECDC4' }}
+                title={isDeployed ? "This robot is already on the field - updates its program in place" : "Deploy this robot"}
               >
-                Deploy
+                {isDeployed ? 'Update Robot' : 'Deploy'}
               </button>
             </div>
           </div>

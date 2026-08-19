@@ -688,25 +688,41 @@ function App() {
     setIsPaused(false);
   };
 
-  const deployRobot = (code, color = '#4ECDC4') => {
+  const deployRobot = (code, color = '#4ECDC4', planId = null) => {
     if (code.length === 0) {
       alert('Build a robot with at least one code block!');
       return;
     }
-    const newRobot = {
-      id: Math.random(),
-      x: Math.random() * (window.innerWidth - 100) + 50,
-      y: 60 + Math.random() * (window.innerHeight - 120),
-      vx: 0,
-      vy: 0,
-      direction: 0, // Angle in radians
-      code: code,
-      age: 0,
-      alive: true,
-      color: color,
-    };
-    setRobots(prev => [...prev, newRobot]);
-    setTelemetry(prev => ({ ...prev, totalRobotsDeployed: prev.totalRobotsDeployed + 1 }));
+    const alreadyDeployed = planId !== null && robots.some(r => r.planId === planId);
+
+    setRobots(prev => {
+      const existingIndex = planId !== null ? prev.findIndex(r => r.planId === planId) : -1;
+      if (existingIndex !== -1) {
+        // This robot is already on the field - update its program/color in
+        // place rather than spawning a duplicate.
+        const updated = [...prev];
+        updated[existingIndex] = { ...updated[existingIndex], code, color };
+        return updated;
+      }
+      const newRobot = {
+        id: Math.random(),
+        planId,
+        x: Math.random() * (window.innerWidth - 100) + 50,
+        y: 60 + Math.random() * (window.innerHeight - 120),
+        vx: 0,
+        vy: 0,
+        direction: 0, // Angle in radians
+        code,
+        age: 0,
+        alive: true,
+        color,
+      };
+      return [...prev, newRobot];
+    });
+
+    if (!alreadyDeployed) {
+      setTelemetry(prev => ({ ...prev, totalRobotsDeployed: prev.totalRobotsDeployed + 1 }));
+    }
     setShowRobotModal(false); // Close modal so user can see deployed robot - tabs persist on reopen
   };
 
@@ -783,6 +799,7 @@ function App() {
           setRobotPlans={setRobotPlans}
           activeRobotId={activeRobotPlanId}
           setActiveRobotId={setActiveRobotPlanId}
+          deployedPlanIds={robots.map(r => r.planId)}
         />
       )}
 
