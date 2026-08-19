@@ -8,7 +8,7 @@ const AVAILABLE_BLOCKS = [
     id: 'sensor-mosquito',
     label: 'if sensor < mosquito_fish >',
     description: 'Detect mosquito fish nearby',
-    category: 'sensor',
+    category: 'control',
     code: 'if sensor <mosquito_fish>:',
     canContain: ['motor', 'control'],
     isContainer: true,
@@ -634,15 +634,6 @@ const RobotBuilder = ({ onDeploy, onClose, robotPlans, setRobotPlans, activeRobo
           {/* LEFT: Available Blocks - static, no scrolling */}
           <div className="blocks-panel">
             <div className="block-categories">
-              <div className="block-category">
-                <h4 className="category-title" style={{ color: '#ff6b6b' }}>Sensors</h4>
-                <div className="blocks-list">
-                  {AVAILABLE_BLOCKS.filter(b => b.category === 'sensor').map(block =>
-                    renderLibraryBlock(block, 'sensor-block')
-                  )}
-                </div>
-              </div>
-
               <div className="block-category">
                 <h4 className="category-title" style={{ color: '#4ecdc4' }}>Motors</h4>
                 <div className="blocks-list">
