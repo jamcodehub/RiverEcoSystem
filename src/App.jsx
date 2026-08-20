@@ -34,6 +34,17 @@ function App() {
     mosquito: 0,
   });
   const gameLoopRef = useRef(null);
+  // Recent screen touches/clicks on the water - creatures near an active
+  // point flee it briefly. Kept as a ref (not state) since it's read every
+  // simulation tick but shouldn't itself trigger React re-renders.
+  const touchPointsRef = useRef([]);
+  const handleWaterTouch = (x, y) => {
+    const now = Date.now();
+    touchPointsRef.current = [
+      ...touchPointsRef.current.filter(t => now - t.time < 1200),
+      { x, y, time: now },
+    ];
+  };
 
   // Initialize ecosystem
   useEffect(() => {
@@ -586,6 +597,35 @@ function App() {
       currentSpeed = 1.5;
     }
 
+    // ===== STARTLE RESPONSE (touch/click on the water) =====
+    // Overrides whatever the creature was doing - a hand or finger nearby
+    // should interrupt hunting/wandering, not just nudge it.
+    if (creature.type !== 'heron' && creature.type !== 'robot') {
+      const now = Date.now();
+      let repelX = 0, repelY = 0, influence = 0;
+      const radius = 140;
+      touchPointsRef.current.forEach(t => {
+        const age = now - t.time;
+        if (age >= 1200) return;
+        const dx = creature.x - t.x;
+        const dy = creature.y - t.y;
+        const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+        if (dist >= radius) return;
+        const fade = 1 - age / 1200;
+        const strength = (1 - dist / radius) * fade;
+        repelX += (dx / dist) * strength;
+        repelY += (dy / dist) * strength;
+        influence = Math.max(influence, strength);
+      });
+      if (influence > 0) {
+        const fleeSpeed = 3 + influence * 3;
+        const len = Math.sqrt(repelX * repelX + repelY * repelY) || 1;
+        dirX = (repelX / len) * fleeSpeed;
+        dirY = (repelY / len) * fleeSpeed;
+        currentSpeed = fleeSpeed;
+      }
+    }
+
     // Apply velocity
     updated.vx = dirX;
     updated.vy = dirY;
@@ -740,7 +780,7 @@ function App() {
   return (
     <div className="app">
       <div className="river-scene">
-        <EcosystemCanvas creatures={creatures} robots={robots} />
+        <EcosystemCanvas creatures={creatures} robots={robots} onWaterTouch={handleWaterTouch} />
         
         {/* Overlay controls */}
         <div className="scene-overlay">

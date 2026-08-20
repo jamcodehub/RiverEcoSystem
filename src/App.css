@@ -218,11 +218,9 @@ body {
 
 .ecosystem-canvas {
   border: none;
-  image-rendering: pixelated;
-  image-rendering: -moz-crisp-edges;
-  image-rendering: crisp-edges;
   width: 100%;
   height: 100%;
+  touch-action: none;
   display: block;
   touch-action: none;
   -webkit-touch-callout: none;

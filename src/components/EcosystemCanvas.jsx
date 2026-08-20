@@ -1,9 +1,19 @@
 import React, { useEffect, useRef, useMemo, useState } from 'react';
 
-const EcosystemCanvas = ({ creatures, robots }) => {
+const EcosystemCanvas = ({ creatures, robots, onWaterTouch }) => {
   const canvasRef = useRef(null);
   const [canvasSize, setCanvasSize] = useState({ width: window.innerWidth, height: window.innerHeight });
-  
+
+  // Latest data, read fresh by the animation loop every frame without
+  // needing to restart the loop or depend on React re-renders for
+  // smoothness (ripples/water shimmer animate independently of how often
+  // the simulation itself ticks, and keep animating while paused).
+  const creaturesRef = useRef(creatures);
+  const robotsRef = useRef(robots);
+  const ripplesRef = useRef([]); // { x, y, startTime }
+  useEffect(() => { creaturesRef.current = creatures; }, [creatures]);
+  useEffect(() => { robotsRef.current = robots; }, [robots]);
+
   // Generate static reeds once
   const staticReeds = useMemo(() => {
     const reeds = [];
@@ -11,11 +21,44 @@ const EcosystemCanvas = ({ creatures, robots }) => {
       reeds.push({
         x: (i * (canvasSize.width / 20)) + 20,
         topY: 10,
-        bottomY: null,
+        h: 30 + Math.sin(i * 1.7) * 10,
+        sway: Math.random() * Math.PI * 2,
       });
     }
     return reeds;
   }, [canvasSize.width]);
+
+  // A handful of small grass tufts along both banks, positioned once per
+  // canvas width so they don't jitter every render.
+  const grassTufts = useMemo(() => {
+    const tufts = [];
+    for (let i = 0; i < 45; i++) {
+      tufts.push({
+        x: Math.random() * canvasSize.width,
+        edge: Math.random() < 0.5 ? 'top' : 'bottom',
+        h: 6 + Math.random() * 10,
+        lean: (Math.random() - 0.5) * 8,
+      });
+    }
+    return tufts;
+  }, [canvasSize.width]);
+
+  // Deterministic "caustic" light glints on the water surface - fixed seeds
+  // animated by time, rather than re-randomized every frame (which would
+  // just look like static noise).
+  const caustics = useMemo(() => {
+    const dots = [];
+    for (let i = 0; i < 18; i++) {
+      dots.push({
+        seedX: Math.random(),
+        seedY: Math.random(),
+        r: 8 + Math.random() * 16,
+        speed: 0.15 + Math.random() * 0.2,
+        phase: Math.random() * Math.PI * 2,
+      });
+    }
+    return dots;
+  }, []);
 
   // Handle canvas resize - debounced so a drag-resize or iPad orientation
   // change doesn't force a full redraw on every intermediate frame.
@@ -23,8 +66,6 @@ const EcosystemCanvas = ({ creatures, robots }) => {
     let resizeTimer = null;
 
     const applyResize = () => {
-      const canvas = canvasRef.current;
-      if (!canvas) return;
       setCanvasSize({
         width: window.innerWidth,
         height: window.innerHeight,
@@ -36,7 +77,6 @@ const EcosystemCanvas = ({ creatures, robots }) => {
       resizeTimer = setTimeout(applyResize, 150);
     };
 
-    // Initial sizing
     const initialTimer = setTimeout(applyResize, 100);
     window.addEventListener('resize', handleResize);
     return () => {
@@ -46,47 +86,403 @@ const EcosystemCanvas = ({ creatures, robots }) => {
     };
   }, []);
 
+  // Resize the actual canvas backing store only when size changes.
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-
     canvas.width = canvasSize.width;
     canvas.height = canvasSize.height;
+  }, [canvasSize]);
 
+  // ---- Sprite helpers -----------------------------------------------
+  const drawFrog = (ctx, x, y, t) => {
+    const hop = Math.sin(t * 0.004 + x) * 0.6;
+    ctx.save();
+    ctx.translate(x, y + hop);
+
+    // Back legs (bent, tucked)
+    ctx.strokeStyle = '#27ae60';
+    ctx.lineWidth = 3;
+    ctx.lineCap = 'round';
+    [-1, 1].forEach(side => {
+      ctx.beginPath();
+      ctx.moveTo(side * 4, 2);
+      ctx.quadraticCurveTo(side * 11, 3, side * 12, -3);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(side * 13, -4, 2.5, 0, Math.PI * 2);
+      ctx.fillStyle = '#27ae60';
+      ctx.fill();
+    });
+
+    // Body
+    const grad = ctx.createRadialGradient(-2, -3, 1, 0, 0, 9);
+    grad.addColorStop(0, '#4bd97e');
+    grad.addColorStop(1, '#2ecc71');
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, 8, 6.5, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Spots
+    ctx.fillStyle = 'rgba(39, 174, 96, 0.55)';
+    ctx.beginPath();
+    ctx.ellipse(-3, 1, 1.6, 1.1, 0.3, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.ellipse(3, -1, 1.4, 1, -0.4, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Eyes (bulging on top)
+    ['#eafff2', '#eafff2'].forEach((c, i) => {
+      const ex = i === 0 ? -3.5 : 3.5;
+      ctx.fillStyle = c;
+      ctx.beginPath();
+      ctx.arc(ex, -5.5, 2.2, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#1a1a1a';
+      ctx.beginPath();
+      ctx.arc(ex, -5.5, 1, 0, Math.PI * 2);
+      ctx.fill();
+    });
+
+    // Front legs
+    ctx.strokeStyle = '#27ae60';
+    ctx.lineWidth = 2;
+    [-1, 1].forEach(side => {
+      ctx.beginPath();
+      ctx.moveTo(side * 5, 4);
+      ctx.lineTo(side * 7, 7);
+      ctx.stroke();
+    });
+
+    ctx.restore();
+  };
+
+  const drawFish = (ctx, x, y, creature, palette) => {
+    const facingRight = creature.vx >= 0;
+    const d = facingRight ? 1 : -1;
+    const wag = Math.sin((creature.age || 0) * 0.3) * 0.35;
+
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.scale(d, 1);
+
+    // Tail fin (forked)
+    ctx.fillStyle = palette.fin;
+    ctx.save();
+    ctx.translate(-palette.len * 0.85, 0);
+    ctx.rotate(wag);
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.lineTo(-palette.tail, -palette.tailW);
+    ctx.lineTo(-palette.tail * 0.55, 0);
+    ctx.lineTo(-palette.tail, palette.tailW);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+
+    // Body
+    const grad = ctx.createLinearGradient(0, -palette.h, 0, palette.h);
+    grad.addColorStop(0, palette.top);
+    grad.addColorStop(1, palette.belly);
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, palette.len, palette.h, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Dorsal fin
+    ctx.fillStyle = palette.fin;
+    ctx.beginPath();
+    if (palette.spiky) {
+      ctx.moveTo(-2, -palette.h + 1);
+      ctx.lineTo(1, -palette.h - 5);
+      ctx.lineTo(3, -palette.h + 1);
+      ctx.lineTo(5, -palette.h - 4);
+      ctx.lineTo(7, -palette.h + 1);
+    } else {
+      ctx.moveTo(-3, -palette.h + 1);
+      ctx.quadraticCurveTo(2, -palette.h - 5, 6, -palette.h + 1);
+    }
+    ctx.closePath();
+    ctx.fill();
+
+    // Eye
+    ctx.fillStyle = '#fff';
+    ctx.beginPath();
+    ctx.arc(palette.len * 0.55, -palette.h * 0.15, palette.eye, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#111';
+    ctx.beginPath();
+    ctx.arc(palette.len * 0.6, -palette.h * 0.15, palette.eye * 0.5, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.restore();
+  };
+
+  const FISH_PALETTE = { len: 8, h: 5, tail: 7, tailW: 4, eye: 1.4, top: '#3fa9e8', belly: '#a7dcf5', fin: '#2980b9', spiky: false };
+  const BABYFISH_PALETTE = { len: 5, h: 3, tail: 4.5, tailW: 2.4, eye: 0.9, top: '#6fc3ec', belly: '#cdeeFA', fin: '#3498db', spiky: false };
+  const MOSQUITO_PALETTE = { len: 5.5, h: 3.2, tail: 5, tailW: 3, eye: 1, top: '#f4664a', belly: '#ffb199', fin: '#c0392b', spiky: true };
+  const BABYMOSQ_PALETTE = { len: 3.4, h: 2, tail: 3, tailW: 1.8, eye: 0.7, top: '#f0876f', belly: '#ffcabb', fin: '#e0654a', spiky: true };
+
+  const drawTadpole = (ctx, x, y, creature) => {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.fillStyle = '#e8a33d';
+    ctx.strokeStyle = '#c9781f';
+    ctx.lineWidth = 1.3;
+    ctx.beginPath();
+    ctx.lineTo(2, 0);
+    ctx.lineTo(9, (Math.sin((creature.age || 0) * 0.25) * 3));
+    ctx.stroke();
+    const grad = ctx.createRadialGradient(-1, -1, 0.5, 0, 0, 4.2);
+    grad.addColorStop(0, '#f7c873');
+    grad.addColorStop(1, '#e8a33d');
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(-1, 0, 4.2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#3a2a10';
+    ctx.beginPath();
+    ctx.arc(-2.6, -1.3, 0.7, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  };
+
+  const drawHeron = (ctx, x, y, creature) => {
+    const facingRight = creature.vx >= 0;
+    const d = facingRight ? 1 : -1;
+    ctx.save();
+    ctx.translate(x, y);
+
+    // Legs
+    ctx.strokeStyle = '#e0b84a';
+    ctx.lineWidth = 1.6;
+    [-6, 4].forEach(lx => {
+      ctx.beginPath();
+      ctx.moveTo(lx, 6);
+      ctx.lineTo(lx - 1, 15);
+      ctx.stroke();
+    });
+
+    // Body
+    const grad = ctx.createLinearGradient(0, -8, 0, 8);
+    grad.addColorStop(0, '#7c94a3');
+    grad.addColorStop(1, '#546778');
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, 20, 8, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Wing
+    ctx.fillStyle = '#4a6275';
+    ctx.beginPath();
+    ctx.moveTo(-d * 4, -1);
+    ctx.quadraticCurveTo(-d * 16, -20, -d * 24, -6);
+    ctx.quadraticCurveTo(-d * 14, -2, -d * 6, 5);
+    ctx.closePath();
+    ctx.fill();
+
+    // Neck + head
+    ctx.strokeStyle = '#7c94a3';
+    ctx.lineWidth = 4.5;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(d * 16, -1);
+    ctx.quadraticCurveTo(d * 22, -14, d * 27, -8);
+    ctx.stroke();
+
+    ctx.fillStyle = '#2c3e50';
+    ctx.beginPath();
+    ctx.arc(d * 28, -8, 4.5, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Eye
+    ctx.fillStyle = '#fff';
+    ctx.beginPath();
+    ctx.arc(d * 29.5, -9, 1, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Beak
+    ctx.strokeStyle = '#e8c547';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(d * 32, -8);
+    ctx.lineTo(d * 43, -7);
+    ctx.stroke();
+
+    ctx.restore();
+  };
+
+  const drawRobot = (ctx, x, y, robot) => {
+    const huntSpeed = robot.huntingSpeed || 0;
+    const maxSpeed = 4;
+    const speedRatio = Math.min(huntSpeed / maxSpeed, 1);
+    const robotColor = robot.color || '#f39c12';
+
+    if (speedRatio > 0.3) {
+      const glowRadius = 15 + speedRatio * 20;
+      const glowAlpha = 0.1 + speedRatio * 0.3;
+      ctx.fillStyle = `rgba(255, ${Math.floor(100 + speedRatio * 155)}, 0, ${glowAlpha})`;
+      ctx.beginPath();
+      ctx.arc(x, y, glowRadius, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    ctx.save();
+    ctx.translate(x, y);
+
+    // Body (rounded)
+    const grad = ctx.createLinearGradient(0, -9, 0, 9);
+    grad.addColorStop(0, robotColor);
+    grad.addColorStop(1, 'rgba(0,0,0,0.15)');
+    ctx.fillStyle = robotColor;
+    const r = 4;
+    ctx.beginPath();
+    ctx.moveTo(-9 + r, -9);
+    ctx.arcTo(9, -9, 9, 9, r);
+    ctx.arcTo(9, 9, -9, 9, r);
+    ctx.arcTo(-9, 9, -9, -9, r);
+    ctx.arcTo(-9, -9, 9, -9, r);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = grad;
+    ctx.fill();
+
+    // Eye/sensor
+    ctx.fillStyle = 'rgba(255,255,255,0.9)';
+    ctx.beginPath();
+    ctx.arc(0, 0, 3.2, 0, Math.PI * 2);
+    ctx.fill();
+    const speedColor = speedRatio > 0.7 ? '#ff4444' : speedRatio > 0.3 ? '#ffaa00' : '#2c3e50';
+    ctx.fillStyle = speedColor;
+    ctx.beginPath();
+    ctx.arc(0, 0, 1.6, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Outline
+    ctx.strokeStyle = speedColor;
+    ctx.lineWidth = 2 + speedRatio * 2;
+    ctx.strokeRect(-6, -6, 12, 12);
+
+    // Antenna
+    ctx.strokeStyle = speedColor;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(8, -8);
+    ctx.lineTo(14, -(8 + speedRatio * 8));
+    ctx.stroke();
+    ctx.restore();
+
+    // Detection range
+    ctx.strokeStyle = `rgba(${Math.floor(243 - speedRatio * 100)}, ${Math.floor(156 + speedRatio * 50)}, 18, ${0.2 + speedRatio * 0.2})`;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.arc(x, y, 250, 0, Math.PI * 2);
+    ctx.stroke();
+  };
+
+  // ---- Main draw, called every animation frame -----------------------
+  const draw = () => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
     const ctx = canvas.getContext('2d');
     const width = canvas.width;
     const height = canvas.height;
+    const t = performance.now();
 
-    // Clear canvas
+    ctx.clearRect(0, 0, width, height);
+
+    // Sky
     ctx.fillStyle = '#87ceeb';
-    ctx.fillRect(0, 0, width, height);
+    ctx.fillRect(0, 0, width, 50);
+    ctx.fillRect(0, height - 50, width, 50);
 
-    // Draw river gradient
-    const gradient = ctx.createLinearGradient(0, 50, 0, height - 50);
-    gradient.addColorStop(0, '#cde8ff');
-    gradient.addColorStop(0.5, '#6db3e9');
-    gradient.addColorStop(1, '#8abde6');
-    ctx.fillStyle = gradient;
+    // Water - richer layered gradient
+    const waterGrad = ctx.createLinearGradient(0, 50, 0, height - 50);
+    waterGrad.addColorStop(0, '#d7ecff');
+    waterGrad.addColorStop(0.35, '#8fc7ec');
+    waterGrad.addColorStop(0.7, '#5a9fd4');
+    waterGrad.addColorStop(1, '#3d7fb5');
+    ctx.fillStyle = waterGrad;
     ctx.fillRect(0, 50, width, height - 100);
 
-    // Draw river banks
-    ctx.fillStyle = '#7bb92e';
-    ctx.fillRect(0, 0, width, 50); // Top bank
-    ctx.fillStyle = '#49b429';
-    ctx.fillRect(0, height - 50, width, 50); // Bottom bank
+    // Subtle animated shimmer bands
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(0, 50, width, height - 100);
+    ctx.clip();
+    ctx.strokeStyle = 'rgba(255,255,255,0.18)';
+    ctx.lineWidth = 2;
+    for (let i = 0; i < 6; i++) {
+      const yy = 70 + i * ((height - 120) / 6);
+      ctx.beginPath();
+      for (let px = 0; px <= width; px += 20) {
+        const wave = Math.sin(px * 0.02 + t * 0.0006 + i) * 4;
+        if (px === 0) ctx.moveTo(px, yy + wave);
+        else ctx.lineTo(px, yy + wave);
+      }
+      ctx.stroke();
+    }
 
-    // Draw plants/reeds on banks (static)
-    ctx.fillStyle = '#5a8c4a';
-    staticReeds.forEach(reed => {
-      // Top reeds
-      ctx.fillRect(reed.x, reed.topY, 3, 40);
-      // Bottom reeds
-      ctx.fillRect(reed.x, height - 40, 3, 40);
+    // Caustic light glints
+    caustics.forEach(c => {
+      const cx = c.seedX * width;
+      const cy = 60 + c.seedY * (height - 120);
+      const alpha = 0.06 + 0.05 * (1 + Math.sin(t * 0.0008 * c.speed * 8 + c.phase));
+      ctx.fillStyle = `rgba(255,255,255,${alpha.toFixed(3)})`;
+      ctx.beginPath();
+      ctx.ellipse(cx, cy, c.r, c.r * 0.35, 0, 0, Math.PI * 2);
+      ctx.fill();
+    });
+    ctx.restore();
+
+    // Banks
+    const topBankGrad = ctx.createLinearGradient(0, 0, 0, 50);
+    topBankGrad.addColorStop(0, '#8bcf3d');
+    topBankGrad.addColorStop(1, '#5a9c28');
+    ctx.fillStyle = topBankGrad;
+    ctx.fillRect(0, 0, width, 50);
+
+    const bottomBankGrad = ctx.createLinearGradient(0, height - 50, 0, height);
+    bottomBankGrad.addColorStop(0, '#5a9c28');
+    bottomBankGrad.addColorStop(1, '#3f7a1a');
+    ctx.fillStyle = bottomBankGrad;
+    ctx.fillRect(0, height - 50, width, 50);
+
+    // Reeds (swaying)
+    ctx.strokeStyle = '#4a7a3a';
+    ctx.lineWidth = 3;
+    ctx.lineCap = 'round';
+    staticReeds.forEach((reed, i) => {
+      const sway = Math.sin(t * 0.0012 + reed.sway) * 4;
+      ctx.beginPath();
+      ctx.moveTo(reed.x, reed.topY);
+      ctx.quadraticCurveTo(reed.x + sway, reed.topY + reed.h * 0.6, reed.x + sway * 1.6, reed.topY + reed.h);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(reed.x, height - 10);
+      ctx.quadraticCurveTo(reed.x - sway, height - 10 - reed.h * 0.6, reed.x - sway * 1.6, height - 10 - reed.h);
+      ctx.stroke();
     });
 
-    // Draw rocks - responsive positioning
-    ctx.fillStyle = '#aaa39a';
-    const scale = canvasSize.width / 1000;
+    // Grass tufts
+    ctx.strokeStyle = '#3f7a1a';
+    ctx.lineWidth = 1.6;
+    grassTufts.forEach(g => {
+      const baseY = g.edge === 'top' ? 48 : height - 48;
+      const dir = g.edge === 'top' ? 1 : -1;
+      for (let b = -1; b <= 1; b++) {
+        ctx.beginPath();
+        ctx.moveTo(g.x + b * 2, baseY);
+        ctx.quadraticCurveTo(g.x + b * 2 + g.lean * 0.5, baseY - dir * g.h * 0.6, g.x + g.lean, baseY - dir * g.h);
+        ctx.stroke();
+      }
+    });
+
+    // Rocks
+    const scale = width / 1000;
+    ctx.fillStyle = '#b5ada2';
     const rockPositions = [
       { x: 150 * scale, y: 280 * scale, r: 12 },
       { x: 450 * scale, y: 350 * scale, r: 10 },
@@ -94,140 +490,40 @@ const EcosystemCanvas = ({ creatures, robots }) => {
       { x: 950 * scale, y: 320 * scale, r: 11 },
     ];
     rockPositions.forEach(rock => {
+      const grad = ctx.createRadialGradient(rock.x - rock.r * 0.3, rock.y - rock.r * 0.3, 1, rock.x, rock.y, rock.r);
+      grad.addColorStop(0, '#cfc7ba');
+      grad.addColorStop(1, '#8b8375');
+      ctx.fillStyle = grad;
       ctx.beginPath();
       ctx.arc(rock.x, rock.y, rock.r, 0, Math.PI * 2);
       ctx.fill();
-      ctx.strokeStyle = '#696360';
-      ctx.lineWidth = 1;
-      ctx.stroke();
     });
 
-    // Draw creatures
-    creatures.forEach(creature => {
+    // Creatures
+    const liveCreatures = creaturesRef.current || [];
+    liveCreatures.forEach(creature => {
       const x = Math.floor(creature.x);
       const y = Math.floor(creature.y);
 
       if (creature.type === 'frog') {
-        ctx.fillStyle = '#2ecc71';
-        ctx.fillRect(x - 6, y - 6, 12, 12);
-        ctx.fillStyle = '#27ae60';
-        ctx.fillRect(x - 3, y - 3, 6, 6);
+        drawFrog(ctx, x, y, t);
       } else if (creature.type === 'fish') {
-        ctx.fillStyle = '#3498db';
-        ctx.beginPath();
-        ctx.ellipse(x, y, 8, 5, creature.vx > 0 ? 0 : Math.PI, 0, Math.PI * 2);
-        ctx.fill();
-        // Tail
-        ctx.fillStyle = '#2980b9';
-        ctx.beginPath();
-        ctx.moveTo(x + (creature.vx > 0 ? 8 : -8), y);
-        ctx.lineTo(x + (creature.vx > 0 ? 14 : -14), y - 3);
-        ctx.lineTo(x + (creature.vx > 0 ? 14 : -14), y + 3);
-        ctx.closePath();
-        ctx.fill();
+        drawFish(ctx, x, y, creature, FISH_PALETTE);
       } else if (creature.type === 'babyFish') {
-        // Baby fish - smaller than regular fish
-        ctx.fillStyle = '#5dade2';
-        ctx.beginPath();
-        ctx.ellipse(x, y, 5, 3, creature.vx > 0 ? 0 : Math.PI, 0, Math.PI * 2);
-        ctx.fill();
-        // Tail
-        ctx.fillStyle = '#3498db';
-        ctx.beginPath();
-        ctx.moveTo(x + (creature.vx > 0 ? 5 : -5), y);
-        ctx.lineTo(x + (creature.vx > 0 ? 9 : -9), y - 2);
-        ctx.lineTo(x + (creature.vx > 0 ? 9 : -9), y + 2);
-        ctx.closePath();
-        ctx.fill();
+        drawFish(ctx, x, y, creature, BABYFISH_PALETTE);
       } else if (creature.type === 'tadpole') {
-        // Tadpole - round body with tail
-        ctx.fillStyle = '#f39c12';
-        ctx.beginPath();
-        ctx.arc(x - 2, y, 4, 0, Math.PI * 2);
-        ctx.fill();
-        // Tail
-        ctx.fillStyle = '#e67e22';
-        ctx.beginPath();
-        ctx.moveTo(x + 2, y);
-        ctx.lineTo(x + 8, y + (Math.sin(creature.age * 0.1) * 2));
-        ctx.lineWidth = 1.5;
-        ctx.stroke();
-      } else if (creature.type === 'babyMosquito') {
-        // Baby mosquito fish - smaller, less aggressive coloring
-        ctx.fillStyle = '#ec7063';
-        ctx.beginPath();
-        ctx.ellipse(x, y, 3, 2, creature.vx > 0 ? 0 : Math.PI, 0, Math.PI * 2);
-        ctx.fill();
-        // Small eye
-        ctx.fillStyle = '#000';
-        ctx.beginPath();
-        ctx.arc(x + (creature.vx > 0 ? 2 : -2), y - 0.5, 0.8, 0, Math.PI * 2);
-        ctx.fill();
+        drawTadpole(ctx, x, y, creature);
       } else if (creature.type === 'mosquito') {
-        // Mosquito fish
-        ctx.fillStyle = '#e74c3c';
-        ctx.beginPath();
-        ctx.ellipse(x, y, 5, 3, creature.vx > 0 ? 0 : Math.PI, 0, Math.PI * 2);
-        ctx.fill();
-        // Eyes
-        ctx.fillStyle = '#000';
-        ctx.beginPath();
-        ctx.arc(x + (creature.vx > 0 ? 4 : -4), y - 1, 1.5, 0, Math.PI * 2);
-        ctx.fill();
+        drawFish(ctx, x, y, creature, MOSQUITO_PALETTE);
+      } else if (creature.type === 'babyMosquito') {
+        drawFish(ctx, x, y, creature, BABYMOSQ_PALETTE);
       } else if (creature.type === 'heron') {
-        const facingRight = creature.vx >= 0;
-        const d = facingRight ? 1 : -1;
-
-        // Body - large ellipse (~2x fish size)
-        ctx.fillStyle = '#607b8b';
-        ctx.beginPath();
-        ctx.ellipse(x, y, 20, 8, 0, 0, Math.PI * 2);
-        ctx.fill();
-
-        // Wings
-        ctx.fillStyle = '#4a6275';
-        ctx.beginPath();
-        ctx.moveTo(x - d * 5, y);
-        ctx.lineTo(x - d * 22, y - 18);
-        ctx.lineTo(x - d * 8, y - 4);
-        ctx.closePath();
-        ctx.fill();
-        ctx.beginPath();
-        ctx.moveTo(x - d * 5, y);
-        ctx.lineTo(x - d * 22, y + 18);
-        ctx.lineTo(x - d * 8, y + 4);
-        ctx.closePath();
-        ctx.fill();
-
-        // Neck
-        ctx.strokeStyle = '#607b8b';
-        ctx.lineWidth = 4;
-        ctx.beginPath();
-        ctx.moveTo(x + d * 16, y);
-        ctx.lineTo(x + d * 26, y - 6);
-        ctx.stroke();
-
-        // Head
-        ctx.fillStyle = '#2c3e50';
-        ctx.beginPath();
-        ctx.arc(x + d * 28, y - 7, 5, 0, Math.PI * 2);
-        ctx.fill();
-
-        // Beak
-        ctx.strokeStyle = '#e8c547';
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.moveTo(x + d * 32, y - 7);
-        ctx.lineTo(x + d * 44, y - 7);
-        ctx.stroke();
+        drawHeron(ctx, x, y, creature);
       }
 
-      // Draw detection radius for creatures fleeing
-      const nearbyDanger = creatures.some(
-        c => c.type === 'mosquito' &&
-          Math.hypot(c.x - creature.x, c.y - creature.y) < 120
+      const nearbyDanger = liveCreatures.some(
+        c => c.type === 'mosquito' && Math.hypot(c.x - creature.x, c.y - creature.y) < 120
       );
-
       if (nearbyDanger && creature.type === 'tadpole') {
         ctx.strokeStyle = 'rgba(255, 150, 100, 0.3)';
         ctx.lineWidth = 1;
@@ -237,61 +533,63 @@ const EcosystemCanvas = ({ creatures, robots }) => {
       }
     });
 
-    // Draw robots
-    robots.forEach(robot => {
-      const x = Math.floor(robot.x);
-      const y = Math.floor(robot.y);
-      const huntSpeed = robot.huntingSpeed || 0;
-      const maxSpeed = 4;
-      const speedRatio = Math.min(huntSpeed / maxSpeed, 1);
-      const robotColor = robot.color || '#f39c12';
-
-      // Hunting glow indicator
-      if (speedRatio > 0.3) {
-        const glowRadius = 15 + (speedRatio * 20);
-        const glowAlpha = 0.1 + (speedRatio * 0.3);
-        ctx.fillStyle = `rgba(255, ${Math.floor(100 + speedRatio * 155)}, 0, ${glowAlpha})`;
-        ctx.beginPath();
-        ctx.arc(x, y, glowRadius, 0, Math.PI * 2);
-        ctx.fill();
-      }
-
-      // Robot body
-      ctx.fillStyle = robotColor;
-      ctx.fillRect(x - 8, y - 8, 16, 16);
-
-      // Speed indicator - color changes with speed
-      const speedColor = speedRatio > 0.7 ? '#ff4444' : speedRatio > 0.3 ? '#ffaa00' : robotColor;
-      ctx.strokeStyle = speedColor;
-      ctx.lineWidth = 2 + (speedRatio * 2);
-      ctx.strokeRect(x - 6, y - 6, 12, 12);
-
-      // Antenna
-      ctx.strokeStyle = speedColor;
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.moveTo(x + 8, y - 8);
-      ctx.lineTo(x + 14, y - (8 + speedRatio * 8));
-      ctx.stroke();
-
-      // Detection range
-      ctx.strokeStyle = `rgba(${Math.floor(243 - speedRatio * 100)}, ${Math.floor(156 + speedRatio * 50)}, 18, ${0.2 + speedRatio * 0.2})`;
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.arc(x, y, 250, 0, Math.PI * 2);
-      ctx.stroke();
+    // Robots
+    (robotsRef.current || []).forEach(robot => {
+      drawRobot(ctx, Math.floor(robot.x), Math.floor(robot.y), robot);
     });
 
-    // Draw info text
-    ctx.fillStyle = '#333';
-    ctx.font = '12px sans-serif';
-  }, [creatures, robots, canvasSize]);
+    // Ripples from screen touches
+    const now = Date.now();
+    ripplesRef.current = ripplesRef.current.filter(r => now - r.startTime < 900);
+    ripplesRef.current.forEach(r => {
+      const age = now - r.startTime;
+      const progress = age / 900;
+      [0, 130].forEach(delay => {
+        const p = Math.max(0, Math.min(1, progress - delay / 900));
+        if (p <= 0) return;
+        const radius = p * 55;
+        const alpha = (1 - p) * 0.45;
+        ctx.strokeStyle = `rgba(255,255,255,${alpha.toFixed(3)})`;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(r.x, r.y, radius, 0, Math.PI * 2);
+        ctx.stroke();
+      });
+    });
+  };
+
+  const drawRef = useRef(draw);
+  drawRef.current = draw;
+
+  // A single persistent animation loop, started once. Reads the latest
+  // draw() via a ref so ripples/water shimmer keep animating smoothly
+  // regardless of how often the simulation itself ticks (or if it's paused).
+  useEffect(() => {
+    let frameId;
+    const loop = () => {
+      drawRef.current();
+      frameId = requestAnimationFrame(loop);
+    };
+    frameId = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(frameId);
+  }, []);
+
+  const handlePointerDown = (e) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    ripplesRef.current = [...ripplesRef.current, { x, y, startTime: Date.now() }];
+    if (onWaterTouch) onWaterTouch(x, y);
+  };
 
   return (
     <div className="canvas-container">
       <canvas
         ref={canvasRef}
         className="ecosystem-canvas"
+        onPointerDown={handlePointerDown}
       />
     </div>
   );
