@@ -95,69 +95,96 @@ const EcosystemCanvas = ({ creatures, robots, onWaterTouch }) => {
   }, [canvasSize]);
 
   // ---- Sprite helpers -----------------------------------------------
-  const drawFrog = (ctx, x, y, t) => {
-    const hop = Math.sin(t * 0.004 + x) * 0.6;
+  const drawFrog = (ctx, x, y, creature, t) => {
+    const vx = creature.vx || 0;
+    const vy = creature.vy || 0;
+    const angle = Math.atan2(vy, vx);
+    const speed = Math.min(Math.hypot(vx, vy), 4);
+    const seed = (creature.x || 0) * 0.7 + (creature.y || 0) * 0.3;
+ 
+    // Breaststroke kick cycle: quick power stroke (legs whip out and back),
+    // slower recovery (legs pull back in close to the body). Faster
+    // swimming = faster kicking.
+    const cycleSpeed = 0.005 + speed * 0.0035;
+    const phase = (t * cycleSpeed + seed) % (Math.PI * 2);
+    const kick = Math.pow(Math.max(0, Math.sin(phase)), 0.6); // 0 tucked -> 1 fully extended
+    const bob = Math.sin(t * 0.004 + seed) * 0.5;
+ 
     ctx.save();
-    ctx.translate(x, y + hop);
-
-    // Back legs (bent, tucked)
-    ctx.strokeStyle = '#27ae60';
-    ctx.lineWidth = 3;
-    ctx.lineCap = 'round';
-    [-1, 1].forEach(side => {
-      ctx.beginPath();
-      ctx.moveTo(side * 4, 2);
-      ctx.quadraticCurveTo(side * 11, 3, side * 12, -3);
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.arc(side * 13, -4, 2.5, 0, Math.PI * 2);
-      ctx.fillStyle = '#27ae60';
-      ctx.fill();
-    });
-
-    // Body
-    const grad = ctx.createRadialGradient(-2, -3, 1, 0, 0, 9);
-    grad.addColorStop(0, '#4bd97e');
-    grad.addColorStop(1, '#2ecc71');
-    ctx.fillStyle = grad;
-    ctx.beginPath();
-    ctx.ellipse(0, 0, 8, 6.5, 0, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Spots
-    ctx.fillStyle = 'rgba(39, 174, 96, 0.55)';
-    ctx.beginPath();
-    ctx.ellipse(-3, 1, 1.6, 1.1, 0.3, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.beginPath();
-    ctx.ellipse(3, -1, 1.4, 1, -0.4, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Eyes (bulging on top)
-    ['#eafff2', '#eafff2'].forEach((c, i) => {
-      const ex = i === 0 ? -3.5 : 3.5;
-      ctx.fillStyle = c;
-      ctx.beginPath();
-      ctx.arc(ex, -5.5, 2.2, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = '#1a1a1a';
-      ctx.beginPath();
-      ctx.arc(ex, -5.5, 1, 0, Math.PI * 2);
-      ctx.fill();
-    });
-
-    // Front legs
+    ctx.translate(x, y + bob);
+    ctx.rotate(angle); // local +x = direction of travel (head faces forward)
+ 
+    // Hind legs - long, attached toward the rear, trailing behind and
+    // kicking outward/back in sync (real frogs kick both legs together,
+    // not alternating).
     ctx.strokeStyle = '#27ae60';
     ctx.lineWidth = 2;
+    ctx.lineCap = 'round';
     [-1, 1].forEach(side => {
+      const hipX = -5, hipY = side * 2.5;
+      const kneeX = hipX - 4 - kick * 4;
+      const kneeY = hipY + side * (2 + kick * 7);
+      const footX = hipX - 7 - kick * 11;
+      const footY = hipY + side * (1 + kick * 4);
+ 
       ctx.beginPath();
-      ctx.moveTo(side * 5, 4);
-      ctx.lineTo(side * 7, 7);
+      ctx.moveTo(hipX, hipY);
+      ctx.quadraticCurveTo(kneeX, kneeY, footX, footY);
       ctx.stroke();
+ 
+      // Webbed foot
+      ctx.save();
+      ctx.translate(footX, footY);
+      ctx.rotate(side * (0.3 + kick * 0.4));
+      ctx.fillStyle = '#27ae60';
+      ctx.beginPath();
+      ctx.ellipse(0, 0, 2.4 + kick * 1, 1.4, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
     });
-
-    ctx.restore();
-  };
+ 
+      // Body
+      const grad = ctx.createRadialGradient(2, -1, 1, 0, 0, 9);
+      grad.addColorStop(0, '#4bd97e');
+      grad.addColorStop(1, '#2ecc71');
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.ellipse(0, 0, 8, 6, 0, 0, Math.PI * 2);
+      ctx.fill();
+  
+      // Spots
+      ctx.fillStyle = 'rgba(39, 174, 96, 0.5)';
+      ctx.beginPath();
+      ctx.ellipse(-1, 2, 1.6, 1, 0.3, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.ellipse(1, -2, 1.4, 0.9, -0.4, 0, Math.PI * 2);
+      ctx.fill();
+  
+      // Eyes (bulging on top, toward the front)
+      [-1, 1].forEach(side => {
+        ctx.fillStyle = '#eafff2';
+        ctx.beginPath();
+        ctx.arc(4, side * 2.6, 2, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#1a1a1a';
+        ctx.beginPath();
+        ctx.arc(4.6, side * 2.6, 0.9, 0, Math.PI * 2);
+        ctx.fill();
+      });
+  
+// Front legs - small, tucked near the head
+      ctx.strokeStyle = '#27ae60';
+      ctx.lineWidth = 1.6;
+      [-1, 1].forEach(side => {
+        ctx.beginPath();
+        ctx.moveTo(4, side * 4);
+        ctx.lineTo(6.5, side * 5.5);
+        ctx.stroke();
+      });
+  
+      ctx.restore();
+    }; // This single brace closes drawFrog!
 
   const drawFish = (ctx, x, y, creature, palette) => {
     const facingRight = creature.vx >= 0;

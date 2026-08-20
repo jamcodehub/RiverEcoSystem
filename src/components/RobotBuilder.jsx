@@ -1,13 +1,16 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 
+// ============================================================================
+// Block definitions
+// ============================================================================
 const AVAILABLE_BLOCKS = [
   {
     id: 'sensor-mosquito',
     label: 'if sensor < mosquito_fish >',
     description: 'Detect mosquito fish nearby',
-    category: 'sensor',
+    category: 'control',
     code: 'if sensor <mosquito_fish>:',
-    canContain: ['motor', 'control', 'wait'],
+    canContain: ['motor', 'control'],
     isContainer: true,
   },
   {
@@ -48,7 +51,7 @@ const AVAILABLE_BLOCKS = [
     description: 'Run continuously',
     category: 'control',
     code: 'repeat forever:',
-    canContain: ['sensor', 'motor', 'control', 'wait'],
+    canContain: ['sensor', 'motor', 'control'],
     isContainer: true,
   },
   {
@@ -57,7 +60,7 @@ const AVAILABLE_BLOCKS = [
     description: 'Repeat actions 3 times',
     category: 'control',
     code: 'repeat 3 times:',
-    canContain: ['motor', 'control', 'wait'],
+    canContain: ['motor', 'control'],
     isContainer: true,
   },
 ];
@@ -67,12 +70,137 @@ const ROBOT_COLORS = [
   '#AA96DA', '#FCBAD3', '#A8D8EA', '#FFA07A', '#98D8C8'
 ];
 
-const RobotBuilder = ({ onDeploy, onClose, robotPlans, setRobotPlans, activeRobotId, setActiveRobotId }) => {
-  const [draggedBlock, setDraggedBlock] = useState(null);
+// ============================================================================
+// Pure tree helpers - the whole program is a tree of block instances.
+// Every instance gets a stable instanceId when it's created, so blocks can be
+// found/removed/inserted anywhere in the tree without relying on brittle
+// (parentIndex, childIndex) coordinates that only worked one level deep.
+// ============================================================================
+let uidCounter = 0;
+const genId = () => `blk_${Date.now().toString(36)}_${(uidCounter++).toString(36)}`;
 
+const createInstance = (blockDef) => ({
+  ...blockDef,
+  instanceId: genId(),
+  ...(blockDef.isContainer ? { children: [] } : {}),
+});
+
+const findNode = (nodes, id) => {
+  for (const n of nodes) {
+    if (n.instanceId === id) return n;
+    if (n.children) {
+      const found = findNode(n.children, id);
+      if (found) return found;
+    }
+  }
+  return null;
+};
+
+// Where a node currently lives: { parentId, index } (parentId null = top level)
+const findLocation = (nodes, id, parentId = null) => {
+  for (let i = 0; i < nodes.length; i++) {
+    const n = nodes[i];
+    if (n.instanceId === id) return { parentId, index: i };
+    if (n.children) {
+      const found = findLocation(n.children, id, n.instanceId);
+      if (found) return found;
+    }
+  }
+  return null;
+};
+
+// Does `node`'s subtree contain a descendant with this instanceId?
+const containsDescendant = (node, id) => {
+  if (!node.children) return false;
+  for (const child of node.children) {
+    if (child.instanceId === id || containsDescendant(child, id)) return true;
+  }
+  return false;
+};
+
+// Returns [newTree, removedNode]
+const removeNode = (nodes, id) => {
+  let removed = null;
+  const result = [];
+  for (const n of nodes) {
+    if (n.instanceId === id) {
+      removed = n;
+      continue;
+    }
+    if (n.children) {
+      const [newChildren, childRemoved] = removeNode(n.children, id);
+      if (childRemoved) removed = childRemoved;
+      result.push({ ...n, children: newChildren });
+    } else {
+      result.push(n);
+    }
+  }
+  return [result, removed];
+};
+
+// Insert `node` into the list under `containerId` (null = top level) at `index`.
+const insertNode = (nodes, containerId, index, node) => {
+  if (containerId === null) {
+    const copy = [...nodes];
+    copy.splice(Math.max(0, Math.min(index, copy.length)), 0, node);
+    return copy;
+  }
+  return nodes.map(n => {
+    if (n.instanceId === containerId) {
+      const children = [...(n.children || [])];
+      children.splice(Math.max(0, Math.min(index, children.length)), 0, node);
+      return { ...n, children };
+    }
+    if (n.children) {
+      return { ...n, children: insertNode(n.children, containerId, index, node) };
+    }
+    return n;
+  });
+};
+
+const generatePython = (blocks, indent = 0) => {
+  let code = '';
+  blocks.forEach(block => {
+    code += '  '.repeat(indent) + block.code + '\n';
+    if (block.children && block.children.length > 0) {
+      code += generatePython(block.children, indent + 1);
+    }
+  });
+  return code;
+};
+
+const getBlockColor = (category) => {
+  switch (category) {
+    case 'sensor': return '#ff6b6b';
+    case 'motor': return '#4ecdc4';
+    case 'control': return '#ffe66d';
+    default: return '#95a5a6';
+  }
+};
+
+const RobotBuilder = ({ onDeploy, onClose, robotPlans, setRobotPlans, activeRobotId, setActiveRobotId, deployedPlanIds = [] }) => {
   const robots = robotPlans;
   const setRobots = setRobotPlans;
   const activeRobot = robots.find(r => r.id === activeRobotId);
+
+  // What's currently being dragged (mouse or touch):
+  //   { kind: 'new', blockDef }              - a fresh block from the library
+  //   { kind: 'move', instanceId }           - an existing block being relocated
+  const [dragPayload, setDragPayload] = useState(null);
+  const [hoveredSlotKey, setHoveredSlotKey] = useState(null);
+  // Floating preview shown under the finger while touch-dragging.
+  const [touchGhost, setTouchGhost] = useState(null);
+
+  const touchDragRef = useRef(null); // { payload, offsetX, offsetY, x, y }
+  const modalRef = useRef(null);
+
+  // Kept in a ref so the native (mount-once) touch listeners below always act
+  // on whichever robot is active right now, not whichever was active when
+  // they were first attached.
+  const activeRobotIdRef = useRef(activeRobotId);
+  useEffect(() => {
+    activeRobotIdRef.current = activeRobotId;
+  }, [activeRobotId]);
 
   const createNewRobot = () => {
     const newId = Math.max(...robots.map(r => r.id), 0) + 1;
@@ -96,223 +224,259 @@ const RobotBuilder = ({ onDeploy, onClose, robotPlans, setRobotPlans, activeRobo
     setActiveRobotId(updated[0].id);
   };
 
-  const updateRobotCode = (code) => {
-    setRobots(robots.map(r => 
-      r.id === activeRobotId ? { ...r, code } : r
-    ));
-  };
-
   const updateRobotColor = (color) => {
-    setRobots(robots.map(r => 
+    setRobots(robots.map(r =>
       r.id === activeRobotId ? { ...r, color } : r
     ));
   };
 
-  const handleAddBlock = (block, x = 20, y = 20) => {
-    if (activeRobot) {
-      updateRobotCode([...activeRobot.code, { ...block, children: [], x, y }]);
-    }
-  };
-
-  const handleRemoveBlock = (index) => {
-    if (activeRobot) {
-      updateRobotCode(activeRobot.code.filter((_, i) => i !== index));
-    }
-  };
-
-  const handleMoveBlock = (index, x, y) => {
-    if (activeRobot) {
-      const updated = [...activeRobot.code];
-      updated[index] = { ...updated[index], x, y };
-      updateRobotCode(updated);
-    }
-  };
-
-  const handleAddChildBlock = (containerLocator, block) => {
-    if (activeRobot) {
-      const updated = [...activeRobot.code];
-      let container;
-      
-      // Find the container based on its locator path
-      if (containerLocator.isTopLevel) {
-        container = updated[containerLocator.index];
-      } else {
-        container = updated[containerLocator.parentIndex].children[containerLocator.childIndex];
-      }
-      
-      if (!container.children) {
-        container.children = [];
-      }
-      container.children.push({ ...block, children: [] });
-      updateRobotCode(updated);
-    }
-  };
-
-  const handleRemoveChildBlock = (parentIndex, childIndex) => {
-    if (activeRobot) {
-      const updated = [...activeRobot.code];
-      updated[parentIndex].children.splice(childIndex, 1);
-      updateRobotCode(updated);
-    }
-  };
-
   const handleClearCode = () => {
-    updateRobotCode([]);
+    setRobots(current => current.map(r =>
+      r.id === activeRobotIdRef.current ? { ...r, code: [] } : r
+    ));
   };
 
-  const generatePython = (blocks, indent = 0) => {
-    let code = '';
-    blocks.forEach(block => {
-      code += '  '.repeat(indent) + block.code + '\n';
-      if (block.children && block.children.length > 0) {
-        code += generatePython(block.children, indent + 1);
+  const handleRemoveNode = (instanceId) => {
+    setRobots(current => current.map(r => {
+      if (r.id !== activeRobotIdRef.current) return r;
+      const [newTree] = removeNode(r.code, instanceId);
+      return { ...r, code: newTree };
+    }));
+  };
+
+  // The single source of truth for "drop this thing at this spot". Reads the
+  // active robot fresh via the ref and writes with a functional update, so
+  // it stays correct even when called from a touch listener that was
+  // attached long before this specific drop happened.
+  const performDrop = (containerId, index, payload) => {
+    if (!payload) return;
+
+    setRobots(current => current.map(r => {
+      if (r.id !== activeRobotIdRef.current) return r;
+
+      let tree = r.code;
+      let nodeToInsert;
+      let targetIndex = index;
+
+      if (payload.kind === 'move') {
+        const { instanceId } = payload;
+        if (instanceId === containerId) return r; // dropped onto itself
+
+        const original = findNode(tree, instanceId);
+        if (!original) return r;
+
+        // Can't drop a container into its own descendant.
+        if (containerId !== null && containsDescendant(original, containerId)) {
+          return r;
+        }
+
+        // Does the target container accept this category of block?
+        if (containerId !== null) {
+          const containerNode = findNode(tree, containerId);
+          if (!containerNode || !containerNode.canContain ||
+              !containerNode.canContain.includes(original.category)) {
+            return r;
+          }
+        }
+
+        const loc = findLocation(tree, instanceId);
+        const [treeAfterRemoval, removed] = removeNode(tree, instanceId);
+        if (!removed) return r;
+        tree = treeAfterRemoval;
+        nodeToInsert = removed;
+
+        // Removing an earlier sibling from the same list shifts everything
+        // after it back by one - correct the target index to compensate.
+        if (loc && loc.parentId === containerId && loc.index < index) {
+          targetIndex = index - 1;
+        }
+      } else if (payload.kind === 'new') {
+        if (containerId !== null) {
+          const containerNode = findNode(tree, containerId);
+          if (!containerNode || !containerNode.canContain ||
+              !containerNode.canContain.includes(payload.blockDef.category)) {
+            return r;
+          }
+        }
+        nodeToInsert = createInstance(payload.blockDef);
+      } else {
+        return r;
       }
-    });
-    return code;
+
+      const newTree = insertNode(tree, containerId, targetIndex, nodeToInsert);
+      return { ...r, code: newTree };
+    }));
   };
 
   const handleDeploy = () => {
     if (!activeRobot) return;
     const pythonCode = generatePython(activeRobot.code);
-    onDeploy(pythonCode.split('\n').filter(l => l.trim()), activeRobot.color);
+    onDeploy(pythonCode.split('\n').filter(l => l.trim()), activeRobot.color, activeRobot.id);
   };
 
-  const handleDragStart = (e, block) => {
-    setDraggedBlock(block);
+  const isDeployed = !!(activeRobot && deployedPlanIds.includes(activeRobot.id));
+
+  // ---- Desktop mouse drag (HTML5 DnD) ----
+  // Some browsers (notably Firefox) silently refuse to complete a drag
+  // unless dataTransfer.setData() was called during dragstart, even though
+  // the actual payload is carried in React state, not the transfer itself.
+  const startMouseDrag = (e, payload, effect) => {
+    e.dataTransfer.effectAllowed = effect;
+    e.dataTransfer.setData('text/plain', payload.kind === 'new' ? payload.blockDef.id : payload.instanceId);
+    setDragPayload(payload);
   };
 
-  const handleDragOver = (e) => {
-    e.preventDefault();
-    e.currentTarget.style.borderColor = '#4ECDC4';
-    e.currentTarget.style.backgroundColor = 'rgba(78, 205, 196, 0.1)';
-  };
-
-  const handleDragLeave = (e) => {
-    e.currentTarget.style.borderColor = 'transparent';
-    e.currentTarget.style.backgroundColor = 'transparent';
-  };
-
-  const handleDrop = (e) => {
-    e.preventDefault();
-    e.currentTarget.style.borderColor = 'transparent';
-    e.currentTarget.style.backgroundColor = 'transparent';
-    if (draggedBlock) {
-      // Only add if it's from the library (no originalIndex)
-      // Existing blocks are handled by onDragEnd for moving
-      if (draggedBlock.originalIndex === undefined) {
-        const rect = e.currentTarget.getBoundingClientRect();
-        const x = e.clientX - rect.left;
-        const y = e.clientY - rect.top;
-        handleAddBlock(draggedBlock, x, y);
-      }
-      setDraggedBlock(null);
-    }
-  };
-
-  const handleDropOnContainer = (e, containerLocator) => {
-    e.preventDefault();
+  // ---- Touch drag - instantaneous, no long-press ----
+  // The blocks library is a static (non-scrolling) panel and the workspace
+  // itself scrolls from empty space, not from the blocks, so there's no
+  // scroll-vs-drag ambiguity to resolve here: touching a block always picks
+  // it up immediately.
+  const handleTouchStart = (e, payload) => {
     e.stopPropagation();
-    e.currentTarget.style.borderColor = 'transparent';
-    e.currentTarget.style.backgroundColor = 'transparent';
-    if (draggedBlock && activeRobot) {
-      // Prevent adding a block to its own children (avoid duplication and infinite nesting)
-      if (draggedBlock.originalIndex !== undefined && draggedBlock.originalIndex === containerLocator.index) {
-        setDraggedBlock(null);
-        return;
+    const touch = e.touches[0];
+    const rect = e.currentTarget.getBoundingClientRect();
+    const offsetX = touch.clientX - rect.left;
+    const offsetY = touch.clientY - rect.top;
+
+    touchDragRef.current = {
+      payload,
+      offsetX,
+      offsetY,
+      x: touch.clientX,
+      y: touch.clientY,
+    };
+
+    setDragPayload(payload);
+    setTouchGhost({
+      label: payload.kind === 'new' ? payload.blockDef.label : payload.node.label,
+      category: payload.kind === 'new' ? payload.blockDef.category : payload.node.category,
+      x: touch.clientX,
+      y: touch.clientY,
+      offsetX,
+      offsetY,
+    });
+  };
+
+  useEffect(() => {
+    const el = modalRef.current;
+    if (!el) return;
+
+    const resolveListAndSlot = (x, y) => {
+      const el2 = document.elementFromPoint(x, y);
+      const listEl = el2 ? el2.closest('[data-list-id]') : null;
+      if (!listEl) return null;
+      const slot = findNearestSlot(listEl, y);
+      if (!slot) return null;
+      const rawContainerId = listEl.dataset.listId;
+      const containerId = rawContainerId === 'root' ? null : rawContainerId;
+      const index = parseInt(slot.dataset.slotIndex, 10);
+      return { containerId, index };
+    };
+
+    const onTouchMoveNative = (e) => {
+      const st = touchDragRef.current;
+      if (!st) return;
+      const touch = e.touches[0];
+      if (!touch) return;
+
+      e.preventDefault();
+      st.x = touch.clientX;
+      st.y = touch.clientY;
+      setTouchGhost(prev => (prev ? { ...prev, x: touch.clientX, y: touch.clientY } : prev));
+
+      const target = resolveListAndSlot(touch.clientX, touch.clientY);
+      setHoveredSlotKey(target ? `${target.containerId ?? 'root'}:${target.index}` : null);
+    };
+
+    const onTouchEndNative = () => {
+      const st = touchDragRef.current;
+      if (st) {
+        const target = resolveListAndSlot(st.x, st.y);
+        if (target) {
+          performDrop(target.containerId, target.index, st.payload);
+        }
       }
-      // Only add if it's from the library (no originalIndex) or from a different block
-      if (draggedBlock.originalIndex === undefined) {
-        handleAddChildBlock(containerLocator, draggedBlock);
+      touchDragRef.current = null;
+      setDragPayload(null);
+      setTouchGhost(null);
+      setHoveredSlotKey(null);
+    };
+
+    el.addEventListener('touchmove', onTouchMoveNative, { passive: false });
+    el.addEventListener('touchend', onTouchEndNative, { passive: true });
+    el.addEventListener('touchcancel', onTouchEndNative, { passive: true });
+
+    return () => {
+      el.removeEventListener('touchmove', onTouchMoveNative);
+      el.removeEventListener('touchend', onTouchEndNative);
+      el.removeEventListener('touchcancel', onTouchEndNative);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Given a list wrapper element, find whichever of its own (direct) slot
+  // markers is vertically closest to clientY. This is what lets a drop
+  // land anywhere in the list's area - including directly on top of a
+  // block - rather than requiring pixel-precise targeting of a thin gap.
+  const findNearestSlot = (listEl, clientY) => {
+    const slots = listEl.querySelectorAll(':scope > .drop-slot');
+    let closest = null;
+    let closestDist = Infinity;
+    slots.forEach(slot => {
+      const rect = slot.getBoundingClientRect();
+      const mid = rect.top + rect.height / 2;
+      const dist = Math.abs(clientY - mid);
+      if (dist < closestDist) {
+        closestDist = dist;
+        closest = slot;
       }
-      setDraggedBlock(null);
-    }
+    });
+    return closest;
   };
 
-  const handleContainerDragOver = (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    e.currentTarget.style.backgroundColor = 'rgba(78, 205, 196, 0.2)';
-  };
-
-  const handleContainerDragLeave = (e) => {
-    e.currentTarget.style.backgroundColor = 'transparent';
-  };
-
-  const getBlockColor = (category) => {
-    switch (category) {
-      case 'sensor':
-        return '#ff6b6b';
-      case 'motor':
-        return '#4ecdc4';
-      case 'control':
-        return '#ffe66d';
-      default:
-        return '#95a5a6';
-    }
-  };
-
-  const renderCodeBlock = (block, index, parentIndex = null, childIndex = null) => {
-    const isContainer = block.isContainer;
-    const isTopLevel = parentIndex === null;
-    
+  // ---- A visual marker for where a block would land (start/end/between
+  // blocks). Purely visual - the actual drop target is the list wrapper
+  // below, which finds the nearest one of these to the cursor/finger. ----
+  const renderSlot = (containerId, index) => {
+    const key = `${containerId ?? 'root'}:${index}`;
+    const isActive = hoveredSlotKey === key && dragPayload;
     return (
       <div
-        key={`${parentIndex}-${index}`}
-        className="code-block-wrapper"
-        style={isTopLevel ? { position: 'absolute', left: `${block.x || 20}px`, top: `${block.y || 20}px` } : {}}
-        draggable={isTopLevel}
-        onDragStart={(e) => {
-          if (isTopLevel) {
-            e.dataTransfer.effectAllowed = 'move';
-            setDraggedBlock({ ...block, originalIndex: index });
-          }
-        }}
-        onDragEnd={(e) => {
-          if (isTopLevel && e.dataTransfer.dropEffect === 'move') {
-            const codespace = document.querySelector('.code-workspace');
-            if (codespace) {
-              const rect = codespace.getBoundingClientRect();
-              const x = Math.max(0, e.clientX - rect.left);
-              const y = Math.max(0, e.clientY - rect.top);
-              handleMoveBlock(index, x, y);
-            }
-          }
-        }}
-      >
+        key={`slot-${key}`}
+        className={`drop-slot${isActive ? ' drop-slot-active' : ''}`}
+        data-slot-index={index}
+      />
+    );
+  };
+
+  const renderBlockRow = (node, displayIndex) => {
+    const isContainer = !!node.isContainer;
+    return (
+      <div className="code-block-wrapper" key={node.instanceId}>
         <div
-          className={`code-block-item category-${block.category} ${isContainer ? 'container-block' : ''}`}
-          style={{ borderLeftColor: getBlockColor(block.category) }}
+          className={`code-block-item category-${node.category} ${isContainer ? 'container-block' : ''}`}
+          style={{ borderLeftColor: getBlockColor(node.category) }}
+          draggable
+          onDragStart={(e) => startMouseDrag(e, { kind: 'move', instanceId: node.instanceId, node }, 'move')}
+          onDragEnd={() => setDragPayload(null)}
+          onTouchStart={(e) => handleTouchStart(e, { kind: 'move', instanceId: node.instanceId, node })}
         >
-          <span className="block-index">{index + 1}</span>
-          <span className="block-content">{block.label}</span>
+          <span className="block-index">{displayIndex}</span>
+          <span className="block-content">{node.label}</span>
           <button
             className="remove-btn"
-            onClick={() => parentIndex !== null 
-              ? handleRemoveChildBlock(parentIndex, childIndex)
-              : handleRemoveBlock(index)
-            }
+            onClick={() => handleRemoveNode(node.instanceId)}
+            onTouchStart={(e) => e.stopPropagation()}
             title="Remove this block"
           >
-            ✕
+            &times;
           </button>
         </div>
-        
+
         {isContainer && (
           <div className="container-body">
-            <div
-              className="children-list"
-              onDragOver={handleContainerDragOver}
-              onDragLeave={handleContainerDragLeave}
-              onDrop={(e) => {
-                const containerLocator = isTopLevel
-                  ? { isTopLevel: true, index }
-                  : { isTopLevel: false, parentIndex, childIndex };
-                handleDropOnContainer(e, containerLocator);
-              }}
-            >
-              {block.children && block.children.length > 0 && (
-                block.children.map((child, cIdx) => renderCodeBlock(child, cIdx + 1, parentIndex !== null ? parentIndex : index, cIdx))
-              )}
+            <div className="children-list">
+              {renderBlockList(node.children || [], node.instanceId)}
             </div>
           </div>
         )}
@@ -320,32 +484,113 @@ const RobotBuilder = ({ onDeploy, onClose, robotPlans, setRobotPlans, activeRobo
     );
   };
 
+  // The list itself is the real drop target: dragging over ANY part of it
+  // (including directly over a block) finds the nearest slot and previews
+  // the insertion there, matching how Scratch/SPIKE let you drop a block
+  // near where you want it rather than requiring pixel-precise aim.
+  const renderBlockList = (nodes, containerId) => (
+    <div
+      className="block-list"
+      data-list-id={containerId ?? 'root'}
+      onDragOver={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const slot = findNearestSlot(e.currentTarget, e.clientY);
+        if (slot) {
+          setHoveredSlotKey(`${containerId ?? 'root'}:${slot.dataset.slotIndex}`);
+        }
+      }}
+      onDragLeave={(e) => {
+        // Only clear if the pointer actually left this list (not just moved
+        // into a child element inside it).
+        if (!e.currentTarget.contains(e.relatedTarget)) {
+          setHoveredSlotKey(null);
+        }
+      }}
+      onDrop={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const slot = findNearestSlot(e.currentTarget, e.clientY);
+        const index = slot ? parseInt(slot.dataset.slotIndex, 10) : nodes.length;
+        performDrop(containerId, index, dragPayload);
+        setDragPayload(null);
+        setHoveredSlotKey(null);
+      }}
+    >
+      {renderSlot(containerId, 0)}
+      {nodes.map((node, i) => (
+        <React.Fragment key={node.instanceId}>
+          {renderBlockRow(node, i + 1)}
+          {renderSlot(containerId, i + 1)}
+        </React.Fragment>
+      ))}
+    </div>
+  );
+
+  const renderLibraryBlock = (block, className) => (
+    <div
+      key={block.id}
+      className={`block-button ${className}`}
+      draggable
+      onDragStart={(e) => startMouseDrag(e, { kind: 'new', blockDef: block }, 'copy')}
+      onDragEnd={() => setDragPayload(null)}
+      onTouchStart={(e) => handleTouchStart(e, { kind: 'new', blockDef: block })}
+      title={block.description}
+    >
+      <div className="block-label">{block.label}</div>
+    </div>
+  );
+
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div
+      ref={modalRef}
+      className="modal-overlay"
+      onClick={onClose}
+    >
+      {/* Floating preview shown under the finger while touch-dragging */}
+      {touchGhost && (
+        <div
+          style={{
+            position: 'fixed',
+            left: `${touchGhost.x - touchGhost.offsetX}px`,
+            top: `${touchGhost.y - touchGhost.offsetY}px`,
+            pointerEvents: 'none',
+            zIndex: 9999,
+            opacity: 0.9,
+          }}
+        >
+          <div
+            className={`block-button ${touchGhost.category}-block`}
+            style={{ margin: 0, boxShadow: '0 10px 25px rgba(0,0,0,0.25)' }}
+          >
+            <div className="block-label">{touchGhost.label}</div>
+          </div>
+        </div>
+      )}
+
       <div className="robot-builder-modal fullscreen-builder" onClick={e => e.stopPropagation()}>
-        <div className="modal-header">
-          <h2>🤖 Robot Builder (Spike Prime Style)</h2>
-          <button className="close-btn" onClick={onClose}>✕</button>
+        <div className="modal-header" style={{ padding: '10px 20px' }}>
+          <h2 style={{ margin: 0, fontSize: '1.5rem' }}>Robot Builder</h2>
+          <button className="close-btn" onClick={onClose}>&times;</button>
         </div>
 
-        {/* Robot Tabs */}
-        <div className="robot-tabs">
-          <div className="tabs-container">
+        {/* Robot Tabs & Colors Compressed */}
+        <div className="robot-tabs" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 20px', borderBottom: '1px solid #eee' }}>
+          <div className="tabs-container" style={{ margin: 0, display: 'flex', alignItems: 'center' }}>
             {robots.map(robot => (
               <div
                 key={robot.id}
                 className={`robot-tab ${activeRobotId === robot.id ? 'active' : ''}`}
                 style={{
                   backgroundColor: activeRobotId === robot.id ? robot.color : 'transparent',
-                  borderColor: robot.color
+                  borderColor: robot.color,
+                  marginBottom: 0
                 }}
               >
                 <button
                   className="tab-button"
                   onClick={() => setActiveRobotId(robot.id)}
-                  style={{
-                    color: activeRobotId === robot.id ? '#fff' : robot.color
-                  }}
+                  style={{ color: activeRobotId === robot.id ? '#fff' : robot.color }}
                 >
                   {robot.name}
                 </button>
@@ -355,27 +600,28 @@ const RobotBuilder = ({ onDeploy, onClose, robotPlans, setRobotPlans, activeRobo
                     onClick={() => deleteRobot(robot.id)}
                     title="Delete this robot"
                   >
-                    ✕
+                    &times;
                   </button>
                 )}
               </div>
             ))}
-            <button className="btn-new-robot" onClick={createNewRobot} title="Create new robot">
-              + New Robot
+            <button className="btn-new-robot" style={{ marginBottom: 0 }} onClick={createNewRobot} title="Create new robot">
+              + New
             </button>
           </div>
-          
+
           {activeRobot && (
-            <div className="robot-settings">
-              <label>Robot Color:</label>
-              <div className="color-picker">
-                {ROBOT_COLORS.map(color => (
+            <div className="robot-settings" style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: 0 }}>
+              <label style={{ margin: 0, fontSize: '14px' }}>Color:</label>
+              <div className="color-picker" style={{ gap: '4px' }}>
+                {ROBOT_COLORS.slice(0, 5).map(color => (
                   <button
                     key={color}
                     className="color-option"
                     style={{
+                      width: '20px', height: '20px',
                       backgroundColor: color,
-                      border: activeRobot.color === color ? '3px solid #333' : '2px solid #ddd'
+                      border: activeRobot.color === color ? '2px solid #333' : '1px solid #ddd'
                     }}
                     onClick={() => updateRobotColor(color)}
                     title={`Set to ${color}`}
@@ -387,113 +633,61 @@ const RobotBuilder = ({ onDeploy, onClose, robotPlans, setRobotPlans, activeRobo
         </div>
 
         <div className="builder-container fullscreen-layout">
-          {/* LEFT: Available Blocks */}
+          {/* LEFT: Available Blocks - static, no scrolling */}
           <div className="blocks-panel">
-            <h3>Blocks Library</h3>
-            <p className="panel-description">Drag blocks to the code space</p>
-
             <div className="block-categories">
-              {/* Sensor Blocks */}
               <div className="block-category">
-                <h4 className="category-title" style={{ color: '#ff6b6b' }}>
-                  🎯 Sensors
-                </h4>
+                <h4 className="category-title" style={{ color: '#4ecdc4' }}>Motors</h4>
                 <div className="blocks-list">
-                  {AVAILABLE_BLOCKS.filter(b => b.category === 'sensor').map(block => (
-                    <div
-                      key={block.id}
-                      className="block-button sensor-block"
-                      draggable
-                      onDragStart={(e) => handleDragStart(e, block)}
-                      title={block.description}
-                    >
-                      <div className="block-label">{block.label}</div>
-                      <div className="block-desc">{block.description}</div>
-                    </div>
-                  ))}
+                  {AVAILABLE_BLOCKS.filter(b => b.category === 'motor').map(block =>
+                    renderLibraryBlock(block, 'motor-block')
+                  )}
                 </div>
               </div>
 
-              {/* Motor Blocks */}
               <div className="block-category">
-                <h4 className="category-title" style={{ color: '#4ecdc4' }}>
-                  ⚙️ Motors
-                </h4>
+                <h4 className="category-title" style={{ color: '#ffe66d' }}>Control</h4>
                 <div className="blocks-list">
-                  {AVAILABLE_BLOCKS.filter(b => b.category === 'motor').map(block => (
-                    <div
-                      key={block.id}
-                      className="block-button motor-block"
-                      draggable
-                      onDragStart={(e) => handleDragStart(e, block)}
-                      title={block.description}
-                    >
-                      <div className="block-label">{block.label}</div>
-                      <div className="block-desc">{block.description}</div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Control Blocks */}
-              <div className="block-category">
-                <h4 className="category-title" style={{ color: '#ffe66d' }}>
-                  🔄 Control
-                </h4>
-                <div className="blocks-list">
-                  {AVAILABLE_BLOCKS.filter(b => b.category === 'control').map(block => (
-                    <div
-                      key={block.id}
-                      className="block-button control-block"
-                      draggable
-                      onDragStart={(e) => handleDragStart(e, block)}
-                      title={block.description}
-                    >
-                      <div className="block-label">{block.label}</div>
-                      <div className="block-desc">{block.description}</div>
-                    </div>
-                  ))}
+                  {AVAILABLE_BLOCKS.filter(b => b.category === 'control').map(block =>
+                    renderLibraryBlock(block, 'control-block')
+                  )}
                 </div>
               </div>
             </div>
           </div>
 
-          {/* RIGHT: Code Workspace */}
+          {/* RIGHT: Code Workspace - a single ordered vertical program, like
+              SPIKE/Scratch: blocks stack top-to-bottom, containers indent
+              their children in place. No manual x/y placement, so a block
+              can never render on top of / hide another block. */}
           <div className="code-panel">
-            <h3>Your Robot Code</h3>
+            <h3 style={{ margin: '10px 0', fontSize: '16px' }}>Your Robot Code</h3>
 
-            <div
-              className="code-workspace"
-              onDragOver={handleDragOver}
-              onDragLeave={handleDragLeave}
-              onDrop={handleDrop}
-            >
-              {/* Always show the workspace, even if empty */}
+            <div className="code-workspace">
               {activeRobot && activeRobot.code.length === 0 && (
                 <div className="empty-workspace">
-                  <p>Drag blocks from the left to build your robot's program</p>
+                  <p>Drag blocks from the left to build your program</p>
                 </div>
               )}
-              {/* Absolutely position all top-level blocks within the workspace */}
-              {activeRobot && activeRobot.code.map((block, index) => renderCodeBlock(block, index))}
+              {activeRobot && renderBlockList(activeRobot.code, null)}
             </div>
 
-            {/* Action Buttons */}
-            <div className="builder-actions">
+            <div className="builder-actions" style={{ padding: '10px' }}>
               <button
                 className="btn btn-secondary"
                 onClick={handleClearCode}
                 disabled={!activeRobot || activeRobot.code.length === 0}
               >
-                Clear Code
+                Clear
               </button>
               <button
                 className="btn btn-primary"
                 onClick={handleDeploy}
                 disabled={!activeRobot || activeRobot.code.length === 0}
                 style={{ backgroundColor: activeRobot ? activeRobot.color : '#4ECDC4' }}
+                title={isDeployed ? "This robot is already on the field - updates its program in place" : "Deploy this robot"}
               >
-                Deploy Robot
+                {isDeployed ? 'Update Robot' : 'Deploy'}
               </button>
             </div>
           </div>
