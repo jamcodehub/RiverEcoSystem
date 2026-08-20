@@ -533,7 +533,7 @@ const EcosystemCanvas = ({ creatures, robots, onWaterTouch }) => {
       const y = Math.floor(creature.y);
 
       if (creature.type === 'frog') {
-        drawFrog(ctx, x, y, t);
+        drawFrog(ctx, x, y, creature, t); // FIX APPLIED HERE
       } else if (creature.type === 'fish') {
         drawFish(ctx, x, y, creature, FISH_PALETTE);
       } else if (creature.type === 'babyFish') {
