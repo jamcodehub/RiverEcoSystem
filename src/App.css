@@ -12,6 +12,10 @@ html {
   width: 100%;
   height: 100%;
   overflow: hidden;
+  /* Backup for browsers that honor touch-action for pinch independent of
+     the viewport meta tag (e.g. Android Chrome) - still allows normal
+     single-finger panning everywhere else. */
+  touch-action: pan-x pan-y;
 }
 
 body {
@@ -58,25 +62,35 @@ body {
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  padding: 12px;
   z-index: 100;
 }
 
 .top-stats {
   pointer-events: auto;
-  border: none;
-  padding: 8px 12px;
-  max-width: 100%;
-  max-height: 20%;
-  overflow-y: auto;
+  width: 100%;
+  border-bottom: 1px solid #e2e5ea;
+  background: #ffffff;
+  box-shadow: 0 2px 8px rgba(20, 24, 32, 0.08);
+  padding: 10px 20px;
+  align-self: stretch;
 }
 
 .bottom-controls {
   pointer-events: auto;
-  background: rgba(15, 30, 15, 0.224);
+  position: fixed;
+  left: 50%;
+  bottom: max(16px, env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  background: #ffffff;
+  border: 1px solid #e2e5ea;
+  border-radius: 10px;
+  box-shadow: 0 4px 16px rgba(20, 24, 32, 0.15);
   display: flex;
   justify-content: center;
   padding: 8px;
+  width: fit-content;
+  max-width: calc(100% - 24px);
+  z-index: 200;
 }
 
 /* ============ Stats Panel ============ */
@@ -84,8 +98,6 @@ body {
   padding: 0;
   border: none;
   box-shadow: none;
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
 }
 
 .stats-panel h1 {
@@ -97,69 +109,93 @@ body {
 }
 
 .stats-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-  gap: 10px;
-  min-width: min-content;
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: stretch;
+  justify-content: center;
+  gap: 0;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 @media (max-width: 768px) {
-  .stats-panel {
-    padding: 14px 16px;
-  }
-
-  .stats-panel h1 {
-    font-size: 18px;
-    margin-bottom: 12px;
+  .top-stats {
+    padding: 8px 10px;
   }
 
   .stats-grid {
-    grid-template-columns: repeat(3, minmax(100px, 1fr));
-    gap: 10px;
-    font-size: 12px;
+    justify-content: flex-start;
+    gap: 0;
+  }
+
+  .stat-item {
+    padding: 2px 10px;
+  }
+
+  .stat-label {
+    font-size: 10px;
+  }
+
+  .stat-value {
+    font-size: 15px;
   }
 }
 
 .stat-item {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 4px 8px;
+  padding: 2px 18px;
+  border-right: 1px solid #e2e5ea;
   -webkit-user-select: none;
   user-select: none;
 }
 
+.stat-item:first-child {
+  padding-left: 0;
+}
+
+.stat-item:last-child {
+  border-right: none;
+  padding-right: 0;
+}
+
 @media (hover: hover) {
   .stat-item:hover {
-    opacity: 0.8;
+    opacity: 0.7;
   }
 }
 
-.stat-icon {
-  font-size: 16px;
+.stat-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
 .stat-label {
   font-size: 11px;
-  color: #fefefe;
+  color: #8a93a3;
   text-transform: uppercase;
-  font-weight: 500;
-  letter-spacing: 0.5px;
+  font-weight: 600;
+  letter-spacing: 0.6px;
+  white-space: nowrap;
 }
 
 .stat-value {
-  font-size: 15px;
+  font-size: 17px;
   font-weight: 700;
-  color: #00d4ff;
+  line-height: 1.1;
+  color: #26303d;
+  white-space: nowrap;
 }
 
-.frog-stat .stat-value { color: #2ecc71; }
-.fish-stat .stat-value { color: #3498db; }
-.egg-stat .stat-value { color: #f4d03f; }
-.mosquito-stat .stat-value { color: #e74c3c; }
-.heron-stat .stat-value { color: #ebebeb; }
-.robot-stat .stat-value { color: #f39c12; }
-.total-stat .stat-value { color: #9b59b6; }
+.frog-stat .stat-value { color: #1a9c5b; }
+.fish-stat .stat-value { color: #2f80ff; }
+.egg-stat .stat-value { color: #c9950f; }
+.mosquito-stat .stat-value { color: #d64545; }
+.heron-stat .stat-value { color: #4a5568; }
+.robot-stat .stat-value { color: #d68a1c; }
+.total-stat .stat-value { color: #8e5fd6; }
 
 /* ============ Main Content (Removed - now overlay) ============ */
 .main-content {
@@ -182,11 +218,9 @@ body {
 
 .ecosystem-canvas {
   border: none;
-  image-rendering: pixelated;
-  image-rendering: -moz-crisp-edges;
-  image-rendering: crisp-edges;
   width: 100%;
   height: 100%;
+  touch-action: none;
   display: block;
   touch-action: none;
   -webkit-touch-callout: none;
@@ -204,10 +238,13 @@ body {
 }
 
 .btn {
-  padding: 8px 12px;
+  padding: 8px 14px;
   background: transparent;
-  border: none;
-  color: #00d4ff;
+  /* Solid + transparent (not "none") so each variant's border-color below
+     actually renders - "border: none" would have suppressed it entirely. */
+  border: 2px solid transparent;
+  border-radius: 6px;
+  color: #2f80ff;
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
@@ -219,17 +256,16 @@ body {
 }
 
 .btn:hover:not(:disabled) {
-  opacity: 0.8;
+  opacity: 0.75;
 }
 
 .btn-telemetry {
-  border-color: #9b59b6;
-  color: #9b59b6;
+  border-color: #7c4dbd;
+  color: #7c4dbd;
 }
 
 .btn-telemetry:hover:not(:disabled) {
-  background: rgba(155, 89, 182, 0.2);
-  box-shadow: 0 0 12px rgba(155, 89, 182, 0.4);
+  background: rgba(124, 77, 189, 0.12);
 }
 
 @media (hover: none) and (pointer: coarse) {
@@ -240,54 +276,53 @@ body {
   }
 
   .btn:active:not(:disabled) {
-    background: #1a5276;
-    box-shadow: 0 0 12px rgba(0, 212, 255, 0.4);
+    background: #eef1f5;
   }
 }
 
 
 
 .btn-primary {
-  border-color: #00d4ff;
-  background: #0f3460;
+  border-color: #2f80ff;
+  background: #2f80ff;
+  color: #ffffff;
 }
 
 .btn-primary:hover {
-  background: #1a5276;
+  background: #1c6dee;
 }
 
 .btn-danger {
-  border-color: #e74c3c;
-  color: #e74c3c;
+  border-color: #d64545;
+  color: #d64545;
 }
 
 .btn-danger:hover {
-  background: #5e1a1a;
-  box-shadow: 0 0 12px rgba(231, 76, 60, 0.4);
+  background: rgba(214, 69, 69, 0.12);
 }
 
 .btn-secondary {
-  border-color: #888;
-  color: #888;
+  border-color: #d5dae2;
+  color: #3d4b5c;
 }
 
 .btn-secondary:hover {
-  border-color: #aaa;
-  color: #aaa;
-  background: #1a1a2e;
+  border-color: #a3acbb;
+  color: #26303d;
+  background: #eef1f5;
 }
 
 /* ============ Telemetry Modal ============ */
 .telemetry-modal {
-  background: #16213e;
-  border: 2px solid #9b59b6;
-  border-radius: 8px;
+  background: #eef1f5;
+  border: none;
+  border-radius: 10px;
   max-width: 90vw;
   max-height: 85vh;
   overflow: auto;
   display: flex;
   flex-direction: column;
-  box-shadow: 0 12px 48px rgba(155, 89, 182, 0.3);
+  box-shadow: 0 12px 48px rgba(20, 24, 32, 0.25);
   animation: slideUp 0.3s;
 }
 
@@ -302,7 +337,7 @@ body {
 }
 
 .telemetry-section h3 {
-  color: #9b59b6;
+  color: #2f80ff;
   font-size: 14px;
   text-transform: uppercase;
   letter-spacing: 1px;
@@ -312,10 +347,11 @@ body {
 .big-stat {
   font-size: 48px;
   font-weight: bold;
-  color: #00d4ff;
+  color: #2f80ff;
   text-align: center;
   padding: 20px;
-  background: rgba(0, 212, 255, 0.1);
+  background: #ffffff;
+  border: 1px solid #e2e5ea;
   border-radius: 8px;
 }
 
@@ -326,18 +362,18 @@ body {
 }
 
 .telemetry-card {
-  background: #0f3460;
-  border: 1px solid #333;
-  border-radius: 8px;
+  background: #ffffff;
+  border: 1px solid #e2e5ea;
+  border-radius: 10px;
   padding: 16px;
-  border-left: 4px solid #9b59b6;
+  border-left: 4px solid #2f80ff;
 }
 
 .telemetry-card h4 {
-  color: #9b59b6;
+  color: #26303d;
   font-size: 14px;
   margin-bottom: 12px;
-  font-weight: 600;
+  font-weight: 700;
 }
 
 .stat-row {
@@ -346,7 +382,7 @@ body {
   align-items: center;
   padding: 8px 0;
   font-size: 13px;
-  color: #ffffff;
+  color: #3d4b5c;
 }
 
 .stat-row span {
@@ -354,55 +390,55 @@ body {
 }
 
 .stat-row .value {
-  color: #00d4ff;
-  font-weight: 600;
+  color: #26303d;
+  font-weight: 700;
   font-size: 14px;
 }
 
 .stat-row .value.danger {
-  color: #e74c3c;
+  color: #d64545;
 }
 
 .stat-row .value.success {
-  color: #2ecc71;
+  color: #1a9c5b;
 }
 
 .stat-row .value.warning {
-  color: #f39c12;
+  color: #d68a1c;
 }
 
 .stat-row .percentage {
-  color: #888;
+  color: #8a93a3;
   font-size: 12px;
   margin-left: 8px;
 }
 
 .stat-row.bold {
-  font-weight: 600;
+  font-weight: 700;
   padding-top: 8px;
   margin-top: 8px;
-  border-top: 1px solid #333;
-  color: #00d4ff;
+  border-top: 1px solid #e2e5ea;
+  color: #26303d;
 }
 
 .stat-row.bold .value {
-  color: #00d4ff;
+  color: #2f80ff;
 }
 
 .telemetry-card hr {
   border: none;
-  border-top: 1px solid #333;
+  border-top: 1px solid #e2e5ea;
   margin: 8px 0;
 }
 
 .health-bar {
   width: 100%;
   height: 20px;
-  background: #0a1929;
+  background: #eef1f5;
   border-radius: 10px;
   overflow: hidden;
   margin-bottom: 12px;
-  border: 1px solid #333;
+  border: 1px solid #e2e5ea;
 }
 
 .health-fill {
@@ -482,21 +518,21 @@ body {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 20px 24px;
-  border-bottom: 1px solid #333;
-  background: #0f3460;
+  padding: 14px 22px;
+  border-bottom: 1px solid #e2e5ea;
+  background: #ffffff;
 }
 
 .modal-header h2 {
-  font-size: 20px;
-  font-weight: 600;
-  color: #fff;
+  font-size: 18px;
+  font-weight: 700;
+  color: #26303d;
 }
 
 .close-btn {
   background: none;
   border: none;
-  color: #888;
+  color: #6b7684;
   font-size: 24px;
   cursor: pointer;
   width: 40px;
@@ -504,13 +540,13 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 4px;
+  border-radius: 50%;
   transition: all 0.2s;
 }
 
 .close-btn:hover {
-  color: #fff;
-  background: rgba(255, 255, 255, 0.1);
+  color: #26303d;
+  background: #eef1f5;
 }
 
 /* ============ Builder Layout ============ */
@@ -548,7 +584,7 @@ body {
 
 .panel-description {
   font-size: 12px;
-  color: #888;
+  color: #a7b1c4;
   margin-bottom: 16px;
 }
 
@@ -576,8 +612,8 @@ body {
 }
 
 .blocks-list {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
   gap: 8px;
 }
 
@@ -599,7 +635,6 @@ body {
 .sensor-block:hover {
   background: rgba(255, 107, 107, 0.1);
   border-color: #ff6b6b;
-  box-shadow: 0 0 8px rgba(255, 107, 107, 0.2);
 }
 
 .motor-block {
@@ -609,7 +644,6 @@ body {
 .motor-block:hover {
   background: rgba(78, 205, 196, 0.1);
   border-color: #4ecdc4;
-  box-shadow: 0 0 8px rgba(78, 205, 196, 0.2);
 }
 
 .control-block {
@@ -619,7 +653,6 @@ body {
 .control-block:hover {
   background: rgba(255, 230, 109, 0.1);
   border-color: #ffe66d;
-  box-shadow: 0 0 8px rgba(255, 230, 109, 0.2);
 }
 
 .block-label {
@@ -633,44 +666,80 @@ body {
 .block-desc {
   display: block;
   font-size: 11px;
-  color: #888;
+  color: #a7b1c4;
 }
 
 /* ============ Code Workspace ============ */
+/* A single ordered vertical program (Scratch/SPIKE style): blocks stack
+   top-to-bottom in normal document flow. No absolute positioning, so a
+   block can never render on top of / hide another block. */
 
 .code-workspace {
   background: #0a1929;
-  border: 2px dashed #333;
+  border: 2px solid #333;
   border-radius: 6px;
   padding: 12px;
   flex: 1;
-  overflow: auto;
+  overflow-y: auto;
+  overflow-x: hidden;
   margin: 12px 0 12px 0;
-  position: relative;
-  min-height: 400px;
+  display: flex;
+  flex-direction: column;
+  min-height: 200px;
   width: 100%;
-  transition: all 0.2s;
+  transition: border-color 0.2s, background 0.2s;
 }
 
 .code-workspace:hover {
   border-color: #4ecdc4;
-  background: rgba(10, 25, 41, 0.8);
 }
 
 .empty-workspace {
   display: flex;
   align-items: center;
   justify-content: center;
-  height: 100%;
   color: #555;
   font-size: 14px;
   text-align: center;
   font-style: italic;
-  min-height: 200px;
+  padding: 24px 0;
 }
 
+/* Wraps each list of blocks (the top-level program, and every container's
+   children). This is the actual drag/drop target - dragover and drop
+   bubble up to it from anywhere inside, including from directly on top of
+   a block, so a drop lands correctly no matter where in the list it's
+   released. The top-level one additionally fills the whole workspace so
+   an empty (or nearly-empty) program is droppable across its full visible
+   area, not just the sliver of space its one slot marker occupies. */
+.block-list {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+}
 
-/* Remove .code-blocks-display flex column, not needed for absolute layout */
+.code-workspace > .block-list {
+  flex: 1;
+}
+
+/* A thin, always-present drop target between blocks. The app has a global
+   box-sizing: border-box reset, which would make padding eat into a fixed
+   height instead of adding to it - so this is pinned to content-box
+   explicitly, height:0 plus vertical padding is what actually creates a
+   real (if visually thin) hit area. */
+.drop-slot {
+  box-sizing: content-box;
+  height: 0;
+  margin: 0;
+  padding: 7px 0;
+  border-radius: 3px;
+  background: transparent;
+  transition: background 0.12s;
+}
+
+.drop-slot-active {
+  background: rgba(78, 205, 196, 0.6);
+}
 
 .code-block-item {
   display: flex;
@@ -681,7 +750,13 @@ body {
   border-left: 4px solid #00d4ff;
   border-radius: 4px;
   padding: 10px 12px;
+  cursor: grab;
   animation: slideIn 0.2s;
+}
+
+.code-block-item:active {
+  cursor: grabbing;
+  opacity: 0.85;
 }
 
 /* Nested blocks should have slightly different styling */
@@ -911,7 +986,7 @@ body {
 
 .robot-settings label {
   font-size: 12px;
-  color: #888;
+  color: #a7b1c4;
   font-weight: 500;
 }
 
@@ -943,18 +1018,6 @@ body {
 .block-button:active {
   cursor: grabbing;
   opacity: 0.8;
-}
-
-.code-workspace {
-  border: 2px dashed transparent;
-  border-radius: 8px;
-  transition: all 0.2s;
-  min-height: 200px;
-  background: rgba(0, 0, 0, 0.2);
-}
-
-.code-workspace:hover {
-  background: rgba(0, 0, 0, 0.3);
 }
 
 /* ============ Scrollbars ============ */
@@ -1001,14 +1064,12 @@ body {
   margin-bottom: 8px;
 }
 
-/* Top-level blocks get absolute positioning from inline styles in React */
-/* Nested blocks in children-list should be relative and indented */
+.code-block-wrapper {
+  margin-bottom: 0;
+}
+
 .children-list .code-block-wrapper {
-  position: relative !important;
-  left: 0 !important;
-  top: 0 !important;
-  margin-left: 8px;
-  margin-bottom: 8px;
+  margin-left: 4px;
 }
 
 .container-block {
@@ -1016,7 +1077,6 @@ body {
   border: 2px solid #ffe66d;
   border-radius: 8px;
   padding-bottom: 0;
-  position: relative;
 }
 
 .container-body {
@@ -1026,29 +1086,19 @@ body {
   border-bottom: 2px solid #ffe66d;
   border-right: 0;
   border-radius: 0 0 6px 0;
-  padding: 16px 12px 12px 20px;
+  padding: 10px 10px 6px 16px;
   margin-top: 0;
 }
 
 .children-list {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  min-height: 50px;
+  min-height: 20px;
   margin-bottom: 0;
-  padding: 12px 0;
+  padding: 0;
   border: none;
   border-radius: 0;
-  transition: all 0.2s;
-  position: relative;
 }
-
-.children-list:hover {
-  background: rgba(78, 205, 196, 0.02);
-}
-
-
-
 .container-actions {
   display: flex;
   flex-direction: column;
@@ -1073,27 +1123,414 @@ body {
 
 .mini-add-btn:hover {
   background: rgba(255, 230, 109, 0.3);
-  box-shadow: 0 0 6px rgba(255, 230, 109, 0.3);
+}
+
+/* ============ Robot Builder - Modern Light Theme ============
+   Scoped entirely under .robot-builder-modal so the rest of the app
+   (dark ecosystem UI, Telemetry dashboard) is untouched. Same class
+   names, same functionality - visuals only. */
+
+.robot-builder-modal {
+  background: #eef1f5;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.robot-builder-modal .modal-header {
+  background: #ffffff;
+  border-bottom: 1px solid #e2e5ea;
+  padding: 14px 22px;
+}
+
+.robot-builder-modal .modal-header h2 {
+  color: #26303d;
+  font-size: 18px;
+}
+
+.robot-builder-modal .close-btn {
+  color: #6b7684;
+  border-radius: 50%;
+}
+
+.robot-builder-modal .close-btn:hover {
+  color: #26303d;
+  background: #eef1f5;
+}
+
+/* ---- Blocks panel (sidebar) ---- */
+.robot-builder-modal .blocks-panel {
+  background: #ffffff;
+  border-right: 1px solid #e2e5ea;
+}
+
+.robot-builder-modal .code-panel {
+  background: #eef1f5;
+}
+
+.robot-builder-modal .blocks-panel h3,
+.robot-builder-modal .code-panel h3 {
+  color: #26303d;
+}
+
+.robot-builder-modal .panel-description {
+  color: #6b7684;
+}
+
+.robot-builder-modal .category-title {
+  color: #8a93a3;
+  border-bottom: 1px solid #e2e5ea;
+}
+
+/* ---- Blocks in the library (flat, solid, SPIKE-style pills) ---- */
+.robot-builder-modal .block-button {
+  background: #f4f5f7;
+  border: 1px solid #e2e5ea;
+  border-radius: 12px;
+  padding: 12px 14px;
+  color: #26303d;
+  box-shadow: 0 1px 2px rgba(20, 24, 32, 0.04);
+  transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
+
+@media (hover: hover) {
+  .robot-builder-modal .block-button:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 10px rgba(20, 24, 32, 0.1);
+  }
+}
+
+.robot-builder-modal .sensor-block {
+  background: #ef5350;
+  border-color: #ef5350;
+  color: #ffffff;
+}
+
+.robot-builder-modal .motor-block {
+  background: #26c6da;
+  border-color: #26c6da;
+  color: #ffffff;
+}
+
+.robot-builder-modal .control-block {
+  background: #ffd54f;
+  border-color: #ffd54f;
+  color: #4a3c00;
+}
+
+.robot-builder-modal .block-label {
+  font-family: inherit;
+  font-weight: 700;
+  font-size: 13.5px;
+}
+
+.robot-builder-modal .block-desc {
+  color: currentColor;
+  opacity: 0.85;
+}
+
+/* ---- Code workspace canvas ---- */
+.robot-builder-modal .code-workspace {
+  background: #ffffff;
+  border: 1px solid #e2e5ea;
+  border-radius: 12px;
+}
+
+.robot-builder-modal .code-workspace:hover {
+  background: #ffffff;
+  border-color: #c7cedb;
+}
+
+.robot-builder-modal .empty-workspace {
+  color: #a3acbb;
+  font-style: normal;
+}
+
+/* ---- Placed blocks (top-level pills on the canvas) ---- */
+.robot-builder-modal .code-block-item {
+  background: #26c6da;
+  border: none;
+  border-left: none;
+  border-radius: 10px;
+  color: #ffffff;
+  box-shadow: 0 2px 6px rgba(20, 24, 32, 0.12);
+}
+
+.robot-builder-modal .category-sensor {
+  background: #ef5350;
+}
+
+.robot-builder-modal .category-motor {
+  background: #26c6da;
+}
+
+.robot-builder-modal .category-control {
+  background: #ffd54f;
+  color: #4a3c00;
+}
+
+.robot-builder-modal .children-list .code-block-wrapper .code-block-item {
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid #e2e5ea;
+  color: #26303d;
+}
+
+.robot-builder-modal .children-list .code-block-wrapper .category-sensor {
+  background: rgba(239, 83, 80, 0.12);
+  color: #c62828;
+  border-color: rgba(239, 83, 80, 0.3);
+}
+
+.robot-builder-modal .children-list .code-block-wrapper .category-motor {
+  background: rgba(38, 198, 218, 0.12);
+  color: #00838f;
+  border-color: rgba(38, 198, 218, 0.3);
+}
+
+.robot-builder-modal .children-list .code-block-wrapper .category-control {
+  background: rgba(255, 213, 79, 0.18);
+  color: #7a5f00;
+  border-color: rgba(255, 213, 79, 0.4);
+}
+
+.robot-builder-modal .block-index {
+  background: rgba(255, 255, 255, 0.25);
+  color: inherit;
+}
+
+.robot-builder-modal .children-list .code-block-wrapper .block-index {
+  background: rgba(38, 48, 61, 0.08);
+  color: #26303d;
+}
+
+.robot-builder-modal .block-content {
+  font-family: inherit;
+  color: inherit;
+  font-weight: 600;
+}
+
+.robot-builder-modal .remove-btn {
+  background: rgba(255, 255, 255, 0.25);
+  color: inherit;
+}
+
+.robot-builder-modal .children-list .code-block-wrapper .remove-btn {
+  background: rgba(38, 48, 61, 0.08);
+  color: #26303d;
+}
+
+.robot-builder-modal .remove-btn:hover {
+  background: rgba(255, 255, 255, 0.4);
+}
+
+/* ---- Container blocks (loops) ---- */
+.robot-builder-modal .container-block {
+  background: #ffd54f;
+  border: none;
+  border-radius: 12px;
+}
+
+.robot-builder-modal .container-body {
+  background: rgba(255, 255, 255, 0.55);
+  border: none;
+  border-radius: 0 0 10px 10px;
+}
+
+.robot-builder-modal .children-list:hover {
+  background: rgba(255, 255, 255, 0.35);
+}
+
+.robot-builder-modal .container-actions {
+  border-top: 1px solid rgba(74, 60, 0, 0.15);
+}
+
+.robot-builder-modal .mini-add-btn {
+  background: rgba(255, 255, 255, 0.6);
+  border: 1px solid rgba(74, 60, 0, 0.25);
+  color: #4a3c00;
+}
+
+.robot-builder-modal .mini-add-btn:hover {
+  background: #ffffff;
+}
+
+/* ---- Actions / tips ---- */
+.robot-builder-modal .builder-tips {
+  background: #eaf3ff;
+  border-top: 1px solid #e2e5ea;
+}
+
+.robot-builder-modal .builder-tips h4,
+.robot-builder-modal .builder-tips strong {
+  color: #1565c0;
+}
+
+.robot-builder-modal .builder-tips ul {
+  color: #3d4b5c;
+}
+
+.robot-builder-modal .btn {
+  color: #26303d;
+  border-color: #d5dae2;
+}
+
+.robot-builder-modal .btn-primary {
+  background: #2f80ff;
+  border-color: #2f80ff;
+  color: #ffffff;
+}
+
+.robot-builder-modal .btn-primary:hover {
+  background: #1c6dee;
+}
+
+.robot-builder-modal .btn-secondary {
+  background: #ffffff;
+  border-color: #d5dae2;
+  color: #3d4b5c;
+}
+
+.robot-builder-modal .btn-secondary:hover {
+  background: #f4f5f7;
+}
+
+.robot-builder-modal .btn-danger {
+  background: #ffffff;
+  border-color: #ef5350;
+  color: #c62828;
+}
+
+.robot-builder-modal .btn-danger:hover {
+  background: #fdecea;
+}
+
+/* ---- Robot tabs ---- */
+.robot-builder-modal .robot-tabs {
+  background: #ffffff;
+  border-bottom: 1px solid #e2e5ea;
+}
+
+.robot-builder-modal .robot-tab {
+  border-radius: 10px;
+  border-color: transparent;
+}
+
+.robot-builder-modal .robot-tab.active {
+  background: #2f80ff;
+}
+
+.robot-builder-modal .robot-tab.active .tab-button {
+  color: #ffffff;
+}
+
+.robot-builder-modal .robot-tab:not(.active) {
+  background: #f4f5f7;
+}
+
+.robot-builder-modal .robot-tab:not(.active) .tab-button {
+  color: #3d4b5c;
+  opacity: 1;
+}
+
+.robot-builder-modal .tab-delete {
+  background: transparent;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.robot-builder-modal .robot-tab:not(.active) .tab-delete {
+  color: #a3acbb;
+}
+
+.robot-builder-modal .tab-delete:hover {
+  background: rgba(0, 0, 0, 0.15);
+}
+
+.robot-builder-modal .btn-new-robot {
+  background: #ffffff;
+  border: 1px solid #d5dae2;
+  color: #3d4b5c;
+}
+
+.robot-builder-modal .btn-new-robot:hover {
+  background: #f4f5f7;
+  border-color: #2f80ff;
+  color: #2f80ff;
+}
+
+.robot-builder-modal .robot-settings {
+  border-left: 1px solid #e2e5ea;
+}
+
+.robot-builder-modal .robot-settings label {
+  color: #6b7684;
+}
+
+.robot-builder-modal .color-option {
+  border-color: #e2e5ea;
+}
+
+/* ---- Drop slots (insertion points between/inside blocks) ---- */
+.robot-builder-modal .drop-slot-active {
+  background: rgba(47, 128, 255, 0.35);
+}
+
+/* ---- Scrollbars ---- */
+.robot-builder-modal ::-webkit-scrollbar-track {
+  background: #eef1f5;
+}
+
+.robot-builder-modal ::-webkit-scrollbar-thumb {
+  background: #c7cedb;
+}
+
+.robot-builder-modal ::-webkit-scrollbar-thumb:hover {
+  background: #a3acbb;
 }
 
 /* ============ Touch & Mobile Optimization ============ */
-@media (hover: none) and (pointer: coarse) {
-  /* Touch devices */
+@media (hover: none), (pointer: coarse) {
+  /* The blocks library is a compact, static grid that fits without
+     scrolling, and touching a block picks it up immediately - no
+     long-press needed (see RobotBuilder.jsx). The code workspace can
+     still grow long, so it keeps normal touch-scrolling from any empty
+     area between blocks. */
+  .blocks-panel {
+    overflow: visible;
+  }
+
+  .code-panel,
+  .code-workspace {
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
   .block-button,
-  .remove-btn,
-  .mini-add-btn {
-    padding: 14px 16px;
+  .block-label,
+  .code-block-item,
+  .block-content {
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+  }
+
+  .block-button,
+  .remove-btn {
+    padding: 12px 14px;
     min-height: 44px;
     min-width: 44px;
   }
 
-  .block-button {
-    padding: 16px 14px;
+  .code-block-item {
+    padding: 12px 14px;
+    min-height: 40px;
   }
 
-  .code-block-item {
-    padding: 14px 16px;
-    min-height: 44px;
+  /* Bigger hit-area for the insertion slots, since precisely targeting a
+     thin line with a finger is the hard part of nesting a block into a
+     container on touch. box-sizing: content-box is set on .drop-slot
+     itself, so this padding purely adds to the target size. */
+  .drop-slot {
+    padding: 14px 0;
   }
 
   .btn {
@@ -1108,10 +1545,10 @@ body {
   }
 }
 
-/* Tablet/iPad specific */
+/* iPad landscape (~1024-1194px) */
 @media (max-width: 1024px) {
   .fullscreen-layout {
-    grid-template-columns: 30% 1fr;
+    grid-template-columns: 32% 1fr;
   }
 
   .block-button {
@@ -1127,7 +1564,42 @@ body {
   }
 }
 
-@media (max-width: 768px) {
+/* iPad portrait (~768-900px) - still plenty of room for the two-column
+   builder, just narrower than desktop/landscape. */
+@media (max-width: 900px) {
+  .fullscreen-layout {
+    grid-template-columns: 42% 1fr;
+  }
+
+  .modal-header {
+    padding: 12px 16px;
+  }
+
+  .modal-header h2 {
+    font-size: 1.15rem;
+    margin: 0;
+  }
+
+  .blocks-panel {
+    padding: 10px 12px 40px 12px;
+  }
+
+  .category-title {
+    margin: 6px 0;
+    font-size: 13px;
+  }
+
+  .block-label {
+    font-size: 12.5px;
+  }
+
+  .block-desc {
+    display: none;
+  }
+}
+
+/* Phones - narrower than any iPad, stack blocks above code */
+@media (max-width: 600px) {
   .fullscreen-builder {
     max-height: 100vh;
   }
@@ -1176,16 +1648,11 @@ body {
 
 /* ============ Responsive (Original) ============ */
 @media (max-width: 1200px) {
-  .builder-container {
-    grid-template-columns: 1fr;
-    max-height: none;
-  }
-
-  .blocks-panel {
-    border-right: none;
-    border-bottom: 1px solid #333;
-  }
-
+  /* Note: the Robot Builder always renders with both "builder-container"
+     and "fullscreen-layout" on the same element, and the breakpoints above
+     already own its column layout (down to phone width). Forcing a single
+     column here too would collapse the builder on iPad Pro 11" landscape
+     (~1194px wide), so this block is scoped to the non-builder stats UI. */
   .stats-grid {
     grid-template-columns: repeat(3, 1fr);
   }
