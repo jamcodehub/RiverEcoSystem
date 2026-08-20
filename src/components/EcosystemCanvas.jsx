@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useMemo, useState } from 'react';
 
-const EcosystemCanvas = ({ creatures, robots, onWaterTouch }) => {
+const EcosystemCanvas = ({ creatures, robots, plants, isPaused, onWaterTouch }) => {
   const canvasRef = useRef(null);
   const [canvasSize, setCanvasSize] = useState({ width: window.innerWidth, height: window.innerHeight });
 
@@ -10,17 +10,28 @@ const EcosystemCanvas = ({ creatures, robots, onWaterTouch }) => {
   // the simulation itself ticks, and keep animating while paused).
   const creaturesRef = useRef(creatures);
   const robotsRef = useRef(robots);
+  const plantsRef = useRef(plants);
+  const isPausedRef = useRef(isPaused);
   const ripplesRef = useRef([]); // { x, y, startTime }
   useEffect(() => { creaturesRef.current = creatures; }, [creatures]);
   useEffect(() => { robotsRef.current = robots; }, [robots]);
+  useEffect(() => { plantsRef.current = plants; }, [plants]);
+  useEffect(() => { isPausedRef.current = isPaused; }, [isPaused]);
 
-  // Generate static reeds once
+  // A running "sim time" used for all creature/water animation (kicks,
+  // tail wags, reed sway, shimmer). Unlike raw performance.now(), this
+  // stops advancing while paused, and unlike Date.now() (used for ripples
+  // below) it's independent of real-world wall-clock time.
+  const simTimeRef = useRef(0);
+  const lastFrameRef = useRef(null);
+
+  // Generate static reeds once, along the bottom bank only (there's no top
+  // bank anymore).
   const staticReeds = useMemo(() => {
     const reeds = [];
     for (let i = 0; i < 20; i++) {
       reeds.push({
         x: (i * (canvasSize.width / 20)) + 20,
-        topY: 10,
         h: 30 + Math.sin(i * 1.7) * 10,
         sway: Math.random() * Math.PI * 2,
       });
@@ -28,14 +39,13 @@ const EcosystemCanvas = ({ creatures, robots, onWaterTouch }) => {
     return reeds;
   }, [canvasSize.width]);
 
-  // A handful of small grass tufts along both banks, positioned once per
-  // canvas width so they don't jitter every render.
+  // A handful of small grass tufts along the bottom bank, positioned once
+  // per canvas width so they don't jitter every render.
   const grassTufts = useMemo(() => {
     const tufts = [];
-    for (let i = 0; i < 45; i++) {
+    for (let i = 0; i < 30; i++) {
       tufts.push({
         x: Math.random() * canvasSize.width,
-        edge: Math.random() < 0.5 ? 'top' : 'bottom',
         h: 6 + Math.random() * 10,
         lean: (Math.random() - 0.5) * 8,
       });
@@ -101,7 +111,7 @@ const EcosystemCanvas = ({ creatures, robots, onWaterTouch }) => {
     const angle = Math.atan2(vy, vx);
     const speed = Math.min(Math.hypot(vx, vy), 4);
     const seed = (creature.x || 0) * 0.7 + (creature.y || 0) * 0.3;
- 
+
     // Breaststroke kick cycle: quick power stroke (legs whip out and back),
     // slower recovery (legs pull back in close to the body). Faster
     // swimming = faster kicking.
@@ -109,11 +119,11 @@ const EcosystemCanvas = ({ creatures, robots, onWaterTouch }) => {
     const phase = (t * cycleSpeed + seed) % (Math.PI * 2);
     const kick = Math.pow(Math.max(0, Math.sin(phase)), 0.6); // 0 tucked -> 1 fully extended
     const bob = Math.sin(t * 0.004 + seed) * 0.5;
- 
+
     ctx.save();
     ctx.translate(x, y + bob);
     ctx.rotate(angle); // local +x = direction of travel (head faces forward)
- 
+
     // Hind legs - long, attached toward the rear, trailing behind and
     // kicking outward/back in sync (real frogs kick both legs together,
     // not alternating).
@@ -126,12 +136,12 @@ const EcosystemCanvas = ({ creatures, robots, onWaterTouch }) => {
       const kneeY = hipY + side * (2 + kick * 7);
       const footX = hipX - 7 - kick * 11;
       const footY = hipY + side * (1 + kick * 4);
- 
+
       ctx.beginPath();
       ctx.moveTo(hipX, hipY);
       ctx.quadraticCurveTo(kneeX, kneeY, footX, footY);
       ctx.stroke();
- 
+
       // Webbed foot
       ctx.save();
       ctx.translate(footX, footY);
@@ -142,49 +152,49 @@ const EcosystemCanvas = ({ creatures, robots, onWaterTouch }) => {
       ctx.fill();
       ctx.restore();
     });
- 
-      // Body
-      const grad = ctx.createRadialGradient(2, -1, 1, 0, 0, 9);
-      grad.addColorStop(0, '#4bd97e');
-      grad.addColorStop(1, '#2ecc71');
-      ctx.fillStyle = grad;
+
+    // Body
+    const grad = ctx.createRadialGradient(2, -1, 1, 0, 0, 9);
+    grad.addColorStop(0, '#4bd97e');
+    grad.addColorStop(1, '#2ecc71');
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, 8, 6, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Spots
+    ctx.fillStyle = 'rgba(39, 174, 96, 0.5)';
+    ctx.beginPath();
+    ctx.ellipse(-1, 2, 1.6, 1, 0.3, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.ellipse(1, -2, 1.4, 0.9, -0.4, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Eyes (bulging on top, toward the front)
+    [-1, 1].forEach(side => {
+      ctx.fillStyle = '#eafff2';
       ctx.beginPath();
-      ctx.ellipse(0, 0, 8, 6, 0, 0, Math.PI * 2);
+      ctx.arc(4, side * 2.6, 2, 0, Math.PI * 2);
       ctx.fill();
-  
-      // Spots
-      ctx.fillStyle = 'rgba(39, 174, 96, 0.5)';
+      ctx.fillStyle = '#1a1a1a';
       ctx.beginPath();
-      ctx.ellipse(-1, 2, 1.6, 1, 0.3, 0, Math.PI * 2);
+      ctx.arc(4.6, side * 2.6, 0.9, 0, Math.PI * 2);
       ctx.fill();
+    });
+
+    // Front legs - small, tucked near the head
+    ctx.strokeStyle = '#27ae60';
+    ctx.lineWidth = 1.6;
+    [-1, 1].forEach(side => {
       ctx.beginPath();
-      ctx.ellipse(1, -2, 1.4, 0.9, -0.4, 0, Math.PI * 2);
-      ctx.fill();
-  
-      // Eyes (bulging on top, toward the front)
-      [-1, 1].forEach(side => {
-        ctx.fillStyle = '#eafff2';
-        ctx.beginPath();
-        ctx.arc(4, side * 2.6, 2, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.fillStyle = '#1a1a1a';
-        ctx.beginPath();
-        ctx.arc(4.6, side * 2.6, 0.9, 0, Math.PI * 2);
-        ctx.fill();
-      });
-  
-// Front legs - small, tucked near the head
-      ctx.strokeStyle = '#27ae60';
-      ctx.lineWidth = 1.6;
-      [-1, 1].forEach(side => {
-        ctx.beginPath();
-        ctx.moveTo(4, side * 4);
-        ctx.lineTo(6.5, side * 5.5);
-        ctx.stroke();
-      });
-  
-      ctx.restore();
-    }; // This single brace closes drawFrog!
+      ctx.moveTo(4, side * 4);
+      ctx.lineTo(6.5, side * 5.5);
+      ctx.stroke();
+    });
+
+    ctx.restore();
+  };
 
   const drawFish = (ctx, x, y, creature, palette) => {
     const facingRight = creature.vx >= 0;
@@ -416,33 +426,38 @@ const EcosystemCanvas = ({ creatures, robots, onWaterTouch }) => {
     const ctx = canvas.getContext('2d');
     const width = canvas.width;
     const height = canvas.height;
-    const t = performance.now();
+
+    // Advance sim time only while not paused, so frog kicks, tail wags,
+    // reed sway, and shimmer all freeze in place on pause. Ripples still
+    // use real wall-clock time below so touch feedback keeps working.
+    const now = performance.now();
+    const dt = now - (lastFrameRef.current || now);
+    lastFrameRef.current = now;
+    if (!isPausedRef.current) {
+      simTimeRef.current += dt;
+    }
+    const t = simTimeRef.current;
 
     ctx.clearRect(0, 0, width, height);
 
-    // Sky
-    ctx.fillStyle = '#87ceeb';
-    ctx.fillRect(0, 0, width, 50);
-    ctx.fillRect(0, height - 50, width, 50);
-
-    // Water - richer layered gradient
-    const waterGrad = ctx.createLinearGradient(0, 50, 0, height - 50);
+    // Water fills the whole scene except the bottom bank - no top bank.
+    const waterGrad = ctx.createLinearGradient(0, 0, 0, height - 50);
     waterGrad.addColorStop(0, '#d7ecff');
     waterGrad.addColorStop(0.35, '#8fc7ec');
     waterGrad.addColorStop(0.7, '#5a9fd4');
     waterGrad.addColorStop(1, '#3d7fb5');
     ctx.fillStyle = waterGrad;
-    ctx.fillRect(0, 50, width, height - 100);
+    ctx.fillRect(0, 0, width, height - 50);
 
     // Subtle animated shimmer bands
     ctx.save();
     ctx.beginPath();
-    ctx.rect(0, 50, width, height - 100);
+    ctx.rect(0, 0, width, height - 50);
     ctx.clip();
     ctx.strokeStyle = 'rgba(255,255,255,0.18)';
     ctx.lineWidth = 2;
     for (let i = 0; i < 6; i++) {
-      const yy = 70 + i * ((height - 120) / 6);
+      const yy = 30 + i * ((height - 80) / 6);
       ctx.beginPath();
       for (let px = 0; px <= width; px += 20) {
         const wave = Math.sin(px * 0.02 + t * 0.0006 + i) * 4;
@@ -455,7 +470,7 @@ const EcosystemCanvas = ({ creatures, robots, onWaterTouch }) => {
     // Caustic light glints
     caustics.forEach(c => {
       const cx = c.seedX * width;
-      const cy = 60 + c.seedY * (height - 120);
+      const cy = c.seedY * (height - 60);
       const alpha = 0.06 + 0.05 * (1 + Math.sin(t * 0.0008 * c.speed * 8 + c.phase));
       ctx.fillStyle = `rgba(255,255,255,${alpha.toFixed(3)})`;
       ctx.beginPath();
@@ -464,45 +479,62 @@ const EcosystemCanvas = ({ creatures, robots, onWaterTouch }) => {
     });
     ctx.restore();
 
-    // Banks
-    const topBankGrad = ctx.createLinearGradient(0, 0, 0, 50);
-    topBankGrad.addColorStop(0, '#8bcf3d');
-    topBankGrad.addColorStop(1, '#5a9c28');
-    ctx.fillStyle = topBankGrad;
-    ctx.fillRect(0, 0, width, 50);
-
+    // Bottom bank only
     const bottomBankGrad = ctx.createLinearGradient(0, height - 50, 0, height);
     bottomBankGrad.addColorStop(0, '#5a9c28');
     bottomBankGrad.addColorStop(1, '#3f7a1a');
     ctx.fillStyle = bottomBankGrad;
     ctx.fillRect(0, height - 50, width, 50);
 
-    // Reeds (swaying)
+    // Reeds (swaying), rooted in the bottom bank
     ctx.strokeStyle = '#4a7a3a';
     ctx.lineWidth = 3;
     ctx.lineCap = 'round';
-    staticReeds.forEach((reed, i) => {
+    staticReeds.forEach(reed => {
       const sway = Math.sin(t * 0.0012 + reed.sway) * 4;
-      ctx.beginPath();
-      ctx.moveTo(reed.x, reed.topY);
-      ctx.quadraticCurveTo(reed.x + sway, reed.topY + reed.h * 0.6, reed.x + sway * 1.6, reed.topY + reed.h);
-      ctx.stroke();
       ctx.beginPath();
       ctx.moveTo(reed.x, height - 10);
       ctx.quadraticCurveTo(reed.x - sway, height - 10 - reed.h * 0.6, reed.x - sway * 1.6, height - 10 - reed.h);
       ctx.stroke();
     });
 
-    // Grass tufts
+    // Grass tufts along the bank edge
     ctx.strokeStyle = '#3f7a1a';
     ctx.lineWidth = 1.6;
     grassTufts.forEach(g => {
-      const baseY = g.edge === 'top' ? 48 : height - 48;
-      const dir = g.edge === 'top' ? 1 : -1;
+      const baseY = height - 48;
       for (let b = -1; b <= 1; b++) {
         ctx.beginPath();
         ctx.moveTo(g.x + b * 2, baseY);
-        ctx.quadraticCurveTo(g.x + b * 2 + g.lean * 0.5, baseY - dir * g.h * 0.6, g.x + g.lean, baseY - dir * g.h);
+        ctx.quadraticCurveTo(g.x + b * 2 + g.lean * 0.5, baseY + g.h * 0.6, g.x + g.lean, baseY + g.h);
+        ctx.stroke();
+      }
+    });
+
+    // Seaweed - the river's food source. Height reflects how much is left
+    // to graze; tall and full when fresh, a short stub once stripped bare,
+    // regrowing steadily in between.
+    const plantList = plantsRef.current || [];
+    const seaweedBaseY = height - 50;
+    plantList.forEach(p => {
+      const maxH = 74;
+      const h = 12 + p.amount * maxH;
+      const sway = Math.sin(t * 0.0009 + p.x * 0.05) * 7 * (h / maxH);
+      for (let b = 0; b < 3; b++) {
+        const off = (b - 1) * 5;
+        const bladeH = h * (0.82 + 0.18 * Math.sin(b * 2.1 + p.x));
+        const grad = ctx.createLinearGradient(p.x, seaweedBaseY, p.x, seaweedBaseY - bladeH);
+        grad.addColorStop(0, '#2f6b2f');
+        grad.addColorStop(1, '#6cc24a');
+        ctx.strokeStyle = grad;
+        ctx.lineWidth = 3;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(p.x + off, seaweedBaseY);
+        ctx.quadraticCurveTo(
+          p.x + off + sway * 0.6, seaweedBaseY - bladeH * 0.55,
+          p.x + off + sway, seaweedBaseY - bladeH
+        );
         ctx.stroke();
       }
     });
@@ -533,7 +565,7 @@ const EcosystemCanvas = ({ creatures, robots, onWaterTouch }) => {
       const y = Math.floor(creature.y);
 
       if (creature.type === 'frog') {
-        drawFrog(ctx, x, y, creature, t); // FIX APPLIED HERE
+        drawFrog(ctx, x, y, creature, t);
       } else if (creature.type === 'fish') {
         drawFish(ctx, x, y, creature, FISH_PALETTE);
       } else if (creature.type === 'babyFish') {
@@ -557,6 +589,17 @@ const EcosystemCanvas = ({ creatures, robots, onWaterTouch }) => {
         ctx.beginPath();
         ctx.arc(x, y, 15, 0, Math.PI * 2);
         ctx.stroke();
+      }
+
+      // Hunger indicator - a small pulsing marker so hunger (and the
+      // possibility of going without food when plants run out) is
+      // actually visible, not just an invisible internal timer.
+      if (creature.hungry) {
+        const pulse = 0.5 + 0.5 * Math.sin(t * 0.006 + x);
+        ctx.fillStyle = `rgba(255, 179, 71, ${0.5 + pulse * 0.4})`;
+        ctx.beginPath();
+        ctx.arc(x, y - 12, 2.2, 0, Math.PI * 2);
+        ctx.fill();
       }
     });
 

@@ -8,6 +8,7 @@ import TelemetryPanel from './components/TelemetryPanel';
 function App() {
   const [creatures, setCreatures] = useState([]);
   const [robots, setRobots] = useState([]);
+  const [plants, setPlants] = useState([]);
   const [isPaused, setIsPaused] = useState(false);
   const [showRobotModal, setShowRobotModal] = useState(false);
   const [showTelemetry, setShowTelemetry] = useState(false);
@@ -38,6 +39,10 @@ function App() {
   // point flee it briefly. Kept as a ref (not state) since it's read every
   // simulation tick but shouldn't itself trigger React re-renders.
   const touchPointsRef = useRef([]);
+  // Mirrors `plants` state for synchronous reads inside the tick loop
+  // (creatures need to find nearby food without waiting for a re-render).
+  const plantsRef = useRef([]);
+  useEffect(() => { plantsRef.current = plants; }, [plants]);
   const handleWaterTouch = (x, y) => {
     const now = Date.now();
     touchPointsRef.current = [
@@ -95,9 +100,18 @@ function App() {
         setTelemetry(prev => ({ ...prev, gameTime: prev.gameTime + 1 }));
 
         setCreatures(prevCreatures => {
+          const plantBites = [];
           let updated = prevCreatures
-            .map(creature => updateCreature(creature, prevCreatures, gameSpeed))
+            .map(creature => updateCreature(creature, prevCreatures, gameSpeed, plantBites))
             .filter(c => c && c.alive && c.age < c.lifespan);
+
+          setPlants(prevPlants => prevPlants.map(p => {
+            const totalBite = plantBites
+              .filter(b => b.id === p.id)
+              .reduce((sum, b) => sum + b.amount, 0);
+            const regrown = Math.min(1, p.amount + p.regrowRate * gameSpeed);
+            return { ...p, amount: Math.max(0, regrown - totalBite) };
+          }));
 
           // Mosquito fish attack - target tadpoles and baby fish
           // Tadpoles are 50% more likely targets (easier prey)
@@ -509,7 +523,7 @@ function App() {
     return () => clearInterval(gameLoop);
   }, [isPaused, creatures, gameSpeed]);
 
-  const updateCreature = (creature, allCreatures, speedMult = 1) => {
+  const updateCreature = (creature, allCreatures, speedMult = 1, plantBites) => {
     const updated = { ...creature };
     updated.age = (updated.age || 0) + speedMult;
 
@@ -597,6 +611,56 @@ function App() {
       currentSpeed = 1.5;
     }
 
+    // ===== HUNGER & GRAZING (frogs, tadpoles, baby fish, baby mosquito
+    // fish nibble on river plants) =====
+    // Hunger arrives on a random per-creature timer rather than a fixed
+    // clock, so the population doesn't all get hungry in lockstep.
+    const GRAZERS = ['frog', 'tadpole', 'babyFish', 'babyMosquito'];
+    if (GRAZERS.includes(creature.type)) {
+      if (updated.hungerTimer === undefined) {
+        updated.hungerTimer = 300 + Math.random() * 600; // 5-15s at 60fps
+      }
+      updated.hungerTimer -= speedMult;
+      if (updated.hungerTimer <= 0 && !updated.hungry) {
+        updated.hungry = true;
+      }
+
+      if (updated.hungry) {
+        const plantY = window.innerHeight - 60;
+        let target = null;
+        let bestDist = Infinity;
+        plantsRef.current.forEach(p => {
+          if (p.amount < 0.15) return; // nothing worth eating here
+          const d = Math.hypot(creature.x - p.x, creature.y - plantY);
+          if (d < bestDist) {
+            bestDist = d;
+            target = p;
+          }
+        });
+
+        if (target) {
+          const dx = target.x - creature.x;
+          const dy = plantY - creature.y;
+          const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+          if (dist < 18) {
+            // Close enough to graze
+            if (plantBites) plantBites.push({ id: target.id, amount: 0.22 + Math.random() * 0.1 });
+            updated.hungry = false;
+            updated.hungerTimer = 300 + Math.random() * 600;
+          } else {
+            currentSpeed = 1.8;
+            dirX = (dx / dist) * currentSpeed;
+            dirY = (dy / dist) * currentSpeed;
+          }
+        }
+        // If every patch is currently stripped bare, there's nothing to
+        // seek - the creature stays visibly "hungry" (see the indicator in
+        // EcosystemCanvas) and just carries on with its normal wandering
+        // above. This never affects survival, purely a visualization of
+        // competition for a limited food source.
+      }
+    }
+
     // ===== STARTLE RESPONSE (touch/click on the water) =====
     // Overrides whatever the creature was doing - a hand or finger nearby
     // should interrupt hunting/wandering, not just nudge it.
@@ -635,7 +699,7 @@ function App() {
     // Boundaries - wrap horizontally (EXCEPT for herons), constrain vertically to river
     const CANVAS_W = window.innerWidth;
     const CANVAS_H = window.innerHeight;
-    const RIVER_TOP = 50;
+    const RIVER_TOP = 10; // no top bank anymore - water runs to the edge
     const RIVER_BOTTOM = CANVAS_H - 50;
     
     // Handle horizontal movement safely
@@ -724,6 +788,21 @@ function App() {
       });
     }
     setCreatures(newCreatures);
+
+    // River plants (algae/soft plant matter) - a limited food source that
+    // grazers compete over. Spread evenly along the bottom bank.
+    const plantCount = Math.max(8, Math.floor(window.innerWidth / 90));
+    const newPlants = [];
+    for (let i = 0; i < plantCount; i++) {
+      newPlants.push({
+        id: Math.random(),
+        x: (i + 0.5) * (window.innerWidth / plantCount) + (Math.random() - 0.5) * 20,
+        amount: 0.6 + Math.random() * 0.4,
+        regrowRate: 0.0006 + Math.random() * 0.0004,
+      });
+    }
+    setPlants(newPlants);
+
     setRobots([]);
     setIsPaused(false);
   };
@@ -780,7 +859,7 @@ function App() {
   return (
     <div className="app">
       <div className="river-scene">
-        <EcosystemCanvas creatures={creatures} robots={robots} onWaterTouch={handleWaterTouch} />
+        <EcosystemCanvas creatures={creatures} robots={robots} plants={plants} isPaused={isPaused} onWaterTouch={handleWaterTouch} />
         
         {/* Overlay controls */}
         <div className="scene-overlay">
