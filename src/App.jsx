@@ -19,8 +19,9 @@ function App() {
   const [gameSpeed, setGameSpeed] = useState(1); // Game speed multiplier
   const [telemetry, setTelemetry] = useState({
     gameTime: 0,
-    nativeSpeciesKilled: 0,
-    mosquitoesKilledByRobots: 0,
+    nativeSpeciesEaten: 0,
+    totalMosquitoesEaten: 0,
+    mosquitoesEatenByRobots: 0,
     frogsHatched: 0,
     totalRobotsDeployed: 0,
   });
@@ -33,6 +34,17 @@ function App() {
     mosquito: 0,
   });
   const gameLoopRef = useRef(null);
+  // Recent screen touches/clicks on the water - creatures near an active
+  // point flee it briefly. Kept as a ref (not state) since it's read every
+  // simulation tick but shouldn't itself trigger React re-renders.
+  const touchPointsRef = useRef([]);
+  const handleWaterTouch = (x, y) => {
+    const now = Date.now();
+    touchPointsRef.current = [
+      ...touchPointsRef.current.filter(t => now - t.time < 1200),
+      { x, y, time: now },
+    ];
+  };
 
   // Initialize ecosystem
   useEffect(() => {
@@ -54,14 +66,20 @@ function App() {
     const nativeDeath = (prevCreaturesRef.current.frogs - currentCounts.frogs) +
                         (prevCreaturesRef.current.fish - currentCounts.fish) +
                         (prevCreaturesRef.current.tadpoles - currentCounts.tadpoles);
-    
+
+    // Check for invasive mosquito fish death (adults + babies combined, so
+    // a babyMosquito -> mosquito maturation doesn't get miscounted as a death)
+    const mosquitoDeath = (prevCreaturesRef.current.mosquito - currentCounts.mosquito) +
+                          (prevCreaturesRef.current.babyMosquito - currentCounts.babyMosquito);
+
     // Check for frog birth (tadpole -> frog conversion)
     const frogBirth = Math.max(0, currentCounts.frogs - prevCreaturesRef.current.frogs);
 
-    if (nativeDeath > 0 || frogBirth > 0) {
+    if (nativeDeath > 0 || mosquitoDeath > 0 || frogBirth > 0) {
       setTelemetry(prev => ({
         ...prev,
-        nativeSpeciesKilled: prev.nativeSpeciesKilled + nativeDeath,
+        nativeSpeciesEaten: prev.nativeSpeciesEaten + Math.max(0, nativeDeath),
+        totalMosquitoesEaten: prev.totalMosquitoesEaten + Math.max(0, mosquitoDeath),
         frogsHatched: prev.frogsHatched + frogBirth,
       }));
     }
@@ -398,7 +416,11 @@ function App() {
               let updated = { ...robot };
               const hasSensorCommand = robot.code.some(b => typeof b === 'string' && b.includes('sensor'));
               const hasSwimCommand = robot.code.some(b => typeof b === 'string' && b.includes('swim'));
-              const hasRotateCommand = robot.code.some(b => typeof b === 'string' && b.includes('rotate'));
+              // Only the trap/eat motor blocks should let a robot actually
+              // capture a mosquito fish - "motor rotate (swim)" also contains
+              // the substring "rotate", so checking for that alone let a
+              // robot with just a swim block kill on contact too.
+              const hasCaptureCommand = robot.code.some(b => typeof b === 'string' && (b.includes('trap') || b.includes('eat')));
 
               // Check for nearby mosquitoes
               const HUNT_RANGE = 250; // Extended vision
@@ -427,7 +449,7 @@ function App() {
                 updated.huntingSpeed = huntSpeed; // Track speed for visual ramp-up
 
                 // Kill mosquito if close enough
-                if (dist < 15 && hasRotateCommand) {
+                if (dist < 15 && hasCaptureCommand) {
                   setCreatures(prev => {
                     const filtered = prev.filter(c => c.id !== target.id);
                     mosquitoesKilled++;
@@ -475,7 +497,7 @@ function App() {
           if (mosquitoesKilled > 0) {
             setTelemetry(prev => ({
               ...prev,
-              mosquitoesKilledByRobots: prev.mosquitoesKilledByRobots + mosquitoesKilled,
+              mosquitoesEatenByRobots: prev.mosquitoesEatenByRobots + mosquitoesKilled,
             }));
           }
 
@@ -575,13 +597,42 @@ function App() {
       currentSpeed = 1.5;
     }
 
+    // ===== STARTLE RESPONSE (touch/click on the water) =====
+    // Overrides whatever the creature was doing - a hand or finger nearby
+    // should interrupt hunting/wandering, not just nudge it.
+    if (creature.type !== 'heron' && creature.type !== 'robot') {
+      const now = Date.now();
+      let repelX = 0, repelY = 0, influence = 0;
+      const radius = 140;
+      touchPointsRef.current.forEach(t => {
+        const age = now - t.time;
+        if (age >= 1200) return;
+        const dx = creature.x - t.x;
+        const dy = creature.y - t.y;
+        const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+        if (dist >= radius) return;
+        const fade = 1 - age / 1200;
+        const strength = (1 - dist / radius) * fade;
+        repelX += (dx / dist) * strength;
+        repelY += (dy / dist) * strength;
+        influence = Math.max(influence, strength);
+      });
+      if (influence > 0) {
+        const fleeSpeed = 3 + influence * 3;
+        const len = Math.sqrt(repelX * repelX + repelY * repelY) || 1;
+        dirX = (repelX / len) * fleeSpeed;
+        dirY = (repelY / len) * fleeSpeed;
+        currentSpeed = fleeSpeed;
+      }
+    }
+
     // Apply velocity
     updated.vx = dirX;
     updated.vy = dirY;
     updated.x = updated.x + dirX * speedMult;
     updated.y = updated.y + dirY * speedMult;
 
-// Boundaries - wrap horizontally (EXCEPT for herons), constrain vertically to river
+    // Boundaries - wrap horizontally (EXCEPT for herons), constrain vertically to river
     const CANVAS_W = window.innerWidth;
     const CANVAS_H = window.innerHeight;
     const RIVER_TOP = 50;
@@ -677,25 +728,41 @@ function App() {
     setIsPaused(false);
   };
 
-  const deployRobot = (code, color = '#4ECDC4') => {
+  const deployRobot = (code, color = '#4ECDC4', planId = null) => {
     if (code.length === 0) {
       alert('Build a robot with at least one code block!');
       return;
     }
-    const newRobot = {
-      id: Math.random(),
-      x: Math.random() * (window.innerWidth - 100) + 50,
-      y: 60 + Math.random() * (window.innerHeight - 120),
-      vx: 0,
-      vy: 0,
-      direction: 0, // Angle in radians
-      code: code,
-      age: 0,
-      alive: true,
-      color: color,
-    };
-    setRobots(prev => [...prev, newRobot]);
-    setTelemetry(prev => ({ ...prev, totalRobotsDeployed: prev.totalRobotsDeployed + 1 }));
+    const alreadyDeployed = planId !== null && robots.some(r => r.planId === planId);
+
+    setRobots(prev => {
+      const existingIndex = planId !== null ? prev.findIndex(r => r.planId === planId) : -1;
+      if (existingIndex !== -1) {
+        // This robot is already on the field - update its program/color in
+        // place rather than spawning a duplicate.
+        const updated = [...prev];
+        updated[existingIndex] = { ...updated[existingIndex], code, color };
+        return updated;
+      }
+      const newRobot = {
+        id: Math.random(),
+        planId,
+        x: Math.random() * (window.innerWidth - 100) + 50,
+        y: 60 + Math.random() * (window.innerHeight - 120),
+        vx: 0,
+        vy: 0,
+        direction: 0, // Angle in radians
+        code,
+        age: 0,
+        alive: true,
+        color,
+      };
+      return [...prev, newRobot];
+    });
+
+    if (!alreadyDeployed) {
+      setTelemetry(prev => ({ ...prev, totalRobotsDeployed: prev.totalRobotsDeployed + 1 }));
+    }
     setShowRobotModal(false); // Close modal so user can see deployed robot - tabs persist on reopen
   };
 
@@ -713,7 +780,7 @@ function App() {
   return (
     <div className="app">
       <div className="river-scene">
-        <EcosystemCanvas creatures={creatures} robots={robots} />
+        <EcosystemCanvas creatures={creatures} robots={robots} onWaterTouch={handleWaterTouch} />
         
         {/* Overlay controls */}
         <div className="scene-overlay">
@@ -724,22 +791,22 @@ function App() {
           <div className="bottom-controls">
             <div className="controls">
               <button onClick={() => setShowRobotModal(true)} className="btn btn-primary">
-                🤖 Build Robot
+                Build Robot
               </button>
               <button
                 onClick={() => setIsPaused(!isPaused)}
                 className="btn btn-secondary"
               >
-                {isPaused ? '▶ Resume' : '⏸ Pause'}
+                {isPaused ? 'Resume' : 'Pause'}
               </button>
               <button onClick={resetEcosystem} className="btn btn-secondary">
-                ↻ Reset
+                Reset
               </button>
               <button 
                 onClick={() => setShowTelemetry(true)} 
                 className="btn btn-telemetry"
               >
-                📊 Telemetry
+                Telemetry
               </button>
               
               {/* Game Speed Controls */}
@@ -772,6 +839,7 @@ function App() {
           setRobotPlans={setRobotPlans}
           activeRobotId={activeRobotPlanId}
           setActiveRobotId={setActiveRobotPlanId}
+          deployedPlanIds={robots.map(r => r.planId)}
         />
       )}
 

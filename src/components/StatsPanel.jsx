@@ -3,10 +3,9 @@ import React from 'react';
 const StatsPanel = ({ stats }) => {
   return (
     <div className="stats-panel">
-      <h1>🌊 Werribee River Ecosystem Simulator</h1>
+      <h1>Werribee River Ecosystem Simulator</h1>
       <div className="stats-grid">
         <div className="stat-item frog-stat">
-          <span className="stat-icon">🐸</span>
           <div className="stat-info">
             <span className="stat-label">Frogs</span>
             <span className="stat-value">{stats.frogs}</span>
@@ -14,7 +13,6 @@ const StatsPanel = ({ stats }) => {
         </div>
 
         <div className="stat-item fish-stat">
-          <span className="stat-icon">🐠</span>
           <div className="stat-info">
             <span className="stat-label">Fish</span>
             <span className="stat-value">{stats.fish}</span>
@@ -22,7 +20,6 @@ const StatsPanel = ({ stats }) => {
         </div>
 
         <div className="stat-item tadpole-stat">
-          <span className="stat-icon">🦎</span>
           <div className="stat-info">
             <span className="stat-label">Tadpoles</span>
             <span className="stat-value">{stats.tadpoles}</span>
@@ -30,7 +27,6 @@ const StatsPanel = ({ stats }) => {
         </div>
 
         <div className="stat-item babyfish-stat">
-          <span className="stat-icon">🐟</span>
           <div className="stat-info">
             <span className="stat-label">Baby Fish</span>
             <span className="stat-value">{stats.babyFish}</span>
@@ -38,7 +34,6 @@ const StatsPanel = ({ stats }) => {
         </div>
 
         <div className="stat-item mosquito-stat">
-          <span className="stat-icon">🦐</span>
           <div className="stat-info">
             <span className="stat-label">Mosquito Fish</span>
             <span className="stat-value">{stats.mosquito}</span>
@@ -46,7 +41,6 @@ const StatsPanel = ({ stats }) => {
         </div>
 
         <div className="stat-item babymosquito-stat">
-          <span className="stat-icon">🍤</span>
           <div className="stat-info">
             <span className="stat-label">Baby Mosquito</span>
             <span className="stat-value">{stats.babyMosquito}</span>
@@ -54,7 +48,6 @@ const StatsPanel = ({ stats }) => {
         </div>
 
         <div className="stat-item heron-stat">
-          <span className="stat-icon">🦅</span>
           <div className="stat-info">
             <span className="stat-label">Herons</span>
             <span className="stat-value">{stats.heron}</span>
@@ -62,7 +55,6 @@ const StatsPanel = ({ stats }) => {
         </div>
 
         <div className="stat-item robot-stat">
-          <span className="stat-icon">🤖</span>
           <div className="stat-info">
             <span className="stat-label">Robots</span>
             <span className="stat-value">{stats.robots}</span>
@@ -70,7 +62,6 @@ const StatsPanel = ({ stats }) => {
         </div>
 
         <div className="stat-item total-stat">
-          <span className="stat-icon">📊</span>
           <div className="stat-info">
             <span className="stat-label">Total Life</span>
             <span className="stat-value">{stats.frogs + stats.fish + stats.tadpoles + stats.babyFish + stats.babyMosquito + stats.mosquito + stats.heron}</span>
