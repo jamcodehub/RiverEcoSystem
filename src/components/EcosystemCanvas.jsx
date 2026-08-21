@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useMemo, useState } from 'react';
 
-const EcosystemCanvas = ({ creatures, robots, plants, isPaused, onWaterTouch }) => {
+const EcosystemCanvas = ({ creatures, robots, plants, insects, isPaused, onWaterTouch }) => {
   const canvasRef = useRef(null);
   const [canvasSize, setCanvasSize] = useState({ width: window.innerWidth, height: window.innerHeight });
 
@@ -11,11 +11,13 @@ const EcosystemCanvas = ({ creatures, robots, plants, isPaused, onWaterTouch }) 
   const creaturesRef = useRef(creatures);
   const robotsRef = useRef(robots);
   const plantsRef = useRef(plants);
+  const insectsRef = useRef(insects);
   const isPausedRef = useRef(isPaused);
   const ripplesRef = useRef([]); // { x, y, startTime }
   useEffect(() => { creaturesRef.current = creatures; }, [creatures]);
   useEffect(() => { robotsRef.current = robots; }, [robots]);
   useEffect(() => { plantsRef.current = plants; }, [plants]);
+  useEffect(() => { insectsRef.current = insects; }, [insects]);
   useEffect(() => { isPausedRef.current = isPaused; }, [isPaused]);
 
   // A running "sim time" used for all creature/water animation (kicks,
@@ -558,8 +560,32 @@ const EcosystemCanvas = ({ creatures, robots, plants, isPaused, onWaterTouch }) 
       ctx.fill();
     });
 
+    // Insects - small floating food, on the surface and in the water
+    (insectsRef.current || []).forEach(ins => {
+      const bob = Math.sin(t * 0.004 + ins.x * 0.1) * 2;
+      const ix = ins.x;
+      const iy = ins.y + bob;
+      ctx.fillStyle = ins.surface ? '#4a3c28' : '#d9c86a';
+      ctx.beginPath();
+      ctx.ellipse(ix, iy, ins.surface ? 2.2 : 1.6, ins.surface ? 1.4 : 1.6, 0, 0, Math.PI * 2);
+      ctx.fill();
+      if (ins.surface) {
+        // Tiny wings
+        ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+        ctx.lineWidth = 0.8;
+        ctx.beginPath();
+        ctx.moveTo(ix - 2, iy - 1);
+        ctx.lineTo(ix + 2, iy - 2);
+        ctx.stroke();
+      }
+    });
+
     // Creatures
     const liveCreatures = creaturesRef.current || [];
+    // Precomputed once per frame (not once per creature) - this is what
+    // keeps the danger-highlight check from becoming O(n^2) once
+    // populations climb into the hundreds.
+    const mosquitoPositions = liveCreatures.filter(c => c.type === 'mosquito');
     liveCreatures.forEach(creature => {
       const x = Math.floor(creature.x);
       const y = Math.floor(creature.y);
@@ -580,15 +606,17 @@ const EcosystemCanvas = ({ creatures, robots, plants, isPaused, onWaterTouch }) 
         drawHeron(ctx, x, y, creature);
       }
 
-      const nearbyDanger = liveCreatures.some(
-        c => c.type === 'mosquito' && Math.hypot(c.x - creature.x, c.y - creature.y) < 120
-      );
-      if (nearbyDanger && creature.type === 'tadpole') {
-        ctx.strokeStyle = 'rgba(255, 150, 100, 0.3)';
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.arc(x, y, 15, 0, Math.PI * 2);
-        ctx.stroke();
+      if (creature.type === 'tadpole') {
+        const nearbyDanger = mosquitoPositions.some(
+          c => Math.hypot(c.x - creature.x, c.y - creature.y) < 120
+        );
+        if (nearbyDanger) {
+          ctx.strokeStyle = 'rgba(255, 150, 100, 0.3)';
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.arc(x, y, 15, 0, Math.PI * 2);
+          ctx.stroke();
+        }
       }
 
       // Hunger indicator - a small pulsing marker so hunger (and the

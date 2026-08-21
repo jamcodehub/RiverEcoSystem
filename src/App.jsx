@@ -6,9 +6,15 @@ import StatsPanel from './components/StatsPanel';
 import TelemetryPanel from './components/TelemetryPanel';
 
 function App() {
+  // Adults live noticeably longer than babies, each individually randomized
+  // within its range so the population doesn't age out in lockstep.
+  const adultLifespan = () => 18000 + Math.random() * 10800; // 5-8 min @ 60fps
+  const babyLifespan = () => 3600 + Math.random() * 3600; // 1-2 min @ 60fps
+
   const [creatures, setCreatures] = useState([]);
   const [robots, setRobots] = useState([]);
   const [plants, setPlants] = useState([]);
+  const [insects, setInsects] = useState([]);
   const [isPaused, setIsPaused] = useState(false);
   const [showRobotModal, setShowRobotModal] = useState(false);
   const [showTelemetry, setShowTelemetry] = useState(false);
@@ -43,6 +49,8 @@ function App() {
   // (creatures need to find nearby food without waiting for a re-render).
   const plantsRef = useRef([]);
   useEffect(() => { plantsRef.current = plants; }, [plants]);
+  const insectsRef = useRef([]);
+  useEffect(() => { insectsRef.current = insects; }, [insects]);
   const handleWaterTouch = (x, y) => {
     const now = Date.now();
     touchPointsRef.current = [
@@ -101,36 +109,84 @@ function App() {
 
         setCreatures(prevCreatures => {
           const plantBites = [];
+          const insectBites = [];
+          const mosquitoList = prevCreatures.filter(c => c.type === 'mosquito');
+          const preyList = prevCreatures.filter(c => c.type === 'tadpole' || c.type === 'babyFish');
           let updated = prevCreatures
-            .map(creature => updateCreature(creature, prevCreatures, gameSpeed, plantBites))
+            .map(creature => updateCreature(creature, prevCreatures, gameSpeed, plantBites, mosquitoList, preyList, insectBites))
             .filter(c => c && c.alive && c.age < c.lifespan);
 
+          // Seaweed: bites apply first, then - only if NOT stripped bare -
+          // it regrows a little. Hitting exactly empty starts a long
+          // cooldown (mosquito-fish babies grazing it down means it stays
+          // gone for a while, not an instant bounce-back).
           setPlants(prevPlants => prevPlants.map(p => {
             const totalBite = plantBites
               .filter(b => b.id === p.id)
               .reduce((sum, b) => sum + b.amount, 0);
-            const regrown = Math.min(1, p.amount + p.regrowRate * gameSpeed);
-            return { ...p, amount: Math.max(0, regrown - totalBite) };
+            let amount = Math.max(0, p.amount - totalBite);
+            let depleteCooldown = p.depleteCooldown || 0;
+            if (amount <= 0.001 && depleteCooldown <= 0) {
+              depleteCooldown = 1200 + Math.random() * 1200; // 20-40s @ 60fps
+            }
+            if (depleteCooldown > 0) {
+              depleteCooldown = Math.max(0, depleteCooldown - gameSpeed);
+            } else {
+              amount = Math.min(1, amount + p.regrowRate * gameSpeed);
+            }
+            return { ...p, amount, depleteCooldown };
+          }));
+
+          // Insects - gentle drift, respawning elsewhere once eaten (see
+          // insectBites below) rather than tracking a real spawn delay.
+          setInsects(prevInsects => prevInsects.map(ins => {
+            let vx = ins.vx, vy = ins.vy;
+            if (Math.random() < 0.03) {
+              vx = (Math.random() - 0.5) * 0.7;
+              vy = (Math.random() - 0.5) * 0.7;
+            }
+            let x = ins.x + vx * gameSpeed;
+            let y = ins.y + vy * gameSpeed;
+            const minY = ins.surface ? 15 : 60;
+            const maxY = ins.surface ? 45 : window.innerHeight - 70;
+            if (x < 10 || x > window.innerWidth - 10) vx = -vx;
+            if (y < minY || y > maxY) vy = -vy;
+            x = Math.max(10, Math.min(window.innerWidth - 10, x));
+            y = Math.max(minY, Math.min(maxY, y));
+
+            if (insectBites.includes(ins.id)) {
+              // Eaten - reappear elsewhere rather than despawning outright
+              return {
+                ...ins,
+                x: Math.random() * (window.innerWidth - 40) + 20,
+                y: ins.surface ? 15 + Math.random() * 25 : 70 + Math.random() * (window.innerHeight - 160),
+                vx, vy,
+              };
+            }
+            return { ...ins, x, y, vx, vy };
           }));
 
           // Mosquito fish attack - target tadpoles and baby fish
           // Tadpoles are 50% more likely targets (easier prey)
+          // Precomputing both lists (rather than re-scanning the whole
+          // population for every mosquito) is what keeps this from
+          // becoming O(n^2) once populations climb into the hundreds.
           const eaten = new Set();
-          updated.forEach(mosquito => {
-            if (mosquito.type === 'mosquito') {
-              updated.forEach(target => {
-                if (distance(mosquito, target) < 15) {
-                  // Tadpoles: 80% chance to be eaten, 20% chance to escape
-                  if (target.type === 'tadpole' && Math.random() < 0.80) {
-                    eaten.add(target.id);
-                  }
-                  // Baby fish: 80% chance to be eaten, 20% chance to escape
-                  else if (target.type === 'babyFish' && Math.random() < 0.80) {
-                    eaten.add(target.id);
-                  }
+          const mosquitoesForAttack = updated.filter(c => c.type === 'mosquito');
+          const preyForAttack = updated.filter(c => c.type === 'tadpole' || c.type === 'babyFish');
+          mosquitoesForAttack.forEach(mosquito => {
+            preyForAttack.forEach(target => {
+              if (distance(mosquito, target) < 15) {
+                // Tadpoles: 80% chance to be eaten, 20% chance to escape
+                if (target.type === 'tadpole' && Math.random() < 0.80) {
+                  eaten.add(target.id);
                 }
-              });
-            }
+                // Baby fish: 80% chance to be eaten, 20% chance to escape
+                else if (target.type === 'babyFish' && Math.random() < 0.80) {
+                  eaten.add(target.id);
+                }
+              }
+            });
           });
 
           let modified = updated.filter(c => !eaten.has(c.id));
@@ -149,7 +205,7 @@ function App() {
                 ...creature,
                 type: 'frog',
                 id: Math.random(),
-                lifespan: 46000,
+                lifespan: adultLifespan(),
               });
               return null;
             }
@@ -159,7 +215,7 @@ function App() {
                 ...creature,
                 type: 'fish',
                 id: Math.random(),
-                lifespan: 46000,
+                lifespan: adultLifespan(),
               });
               return null;
             }
@@ -169,7 +225,7 @@ function App() {
                 ...creature,
                 type: 'mosquito',
                 id: Math.random(),
-                lifespan: 46000,
+                lifespan: adultLifespan(),
               });
               return null;
             }
@@ -180,27 +236,31 @@ function App() {
           const getPopulation = () => modified.length + newCreatures.length;
           const canAddCreature = () => getPopulation() < 1000;
 
-          // Breeding system - Fish breed to make baby fish (40% chance)
+          // Breeding system - Fish breed to make baby fish. Rate is 1.1x
+          // frogs' (below) so fish keep pace instead of lagging behind.
           const fishCount = modified.filter(c => c.type === 'fish').length;
-          if (Math.random() < 0.008 && fishCount > 1) {
+          if (Math.random() < 0.0088 && fishCount > 1) {
             const fishes = modified.filter(c => c.type === 'fish' && (c.breedingCooldown || 0) <= 0);
             const fishBreedingIds = new Set();
             for (let i = 0; i < fishes.length; i++) {
               for (let j = i + 1; j < fishes.length; j++) {
                 if (distance(fishes[i], fishes[j]) < 80) {
-                  if (Math.random() < 0.40 && canAddCreature()) {
-                    newCreatures.push({
-                      id: Math.random(),
-                      type: 'babyFish',
-                      x: (fishes[i].x + fishes[j].x) / 2 + (Math.random() - 0.5) * 30,
-                      y: (fishes[i].y + fishes[j].y) / 2 + (Math.random() - 0.5) * 30,
-                      vx: (Math.random() - 0.5) * 1,
-                      vy: (Math.random() - 0.5) * 1,
-                      age: 0,
-                      alive: true,
-                      lifespan: 3700,
-                      breedingCooldown: 0,
-                    });
+                  if (Math.random() < 0.44 && canAddCreature()) {
+                    // Twin babies per successful breed
+                    for (let k = 0; k < 2; k++) {
+                      newCreatures.push({
+                        id: Math.random(),
+                        type: 'babyFish',
+                        x: (fishes[i].x + fishes[j].x) / 2 + (Math.random() - 0.5) * 30,
+                        y: (fishes[i].y + fishes[j].y) / 2 + (Math.random() - 0.5) * 30,
+                        vx: (Math.random() - 0.5) * 1,
+                        vy: (Math.random() - 0.5) * 1,
+                        age: 0,
+                        alive: true,
+                        lifespan: babyLifespan(),
+                        breedingCooldown: 0,
+                      });
+                    }
                     fishBreedingIds.add(fishes[i].id);
                     fishBreedingIds.add(fishes[j].id);
                   }
@@ -224,18 +284,21 @@ function App() {
               for (let j = i + 1; j < frogs.length; j++) {
                 if (distance(frogs[i], frogs[j]) < 80) {
                   if (Math.random() < 0.40 && canAddCreature()) {
-                    newCreatures.push({
-                      id: Math.random(),
-                      type: 'tadpole',
-                      x: (frogs[i].x + frogs[j].x) / 2 + (Math.random() - 0.5) * 25,
-                      y: (frogs[i].y + frogs[j].y) / 2 + (Math.random() - 0.5) * 25,
-                      vx: (Math.random() - 0.5) * 1,
-                      vy: (Math.random() - 0.5) * 1,
-                      age: 0,
-                      alive: true,
-                      lifespan: 3700,
-                      breedingCooldown: 0,
-                    });
+                    // Twin babies per successful breed
+                    for (let k = 0; k < 2; k++) {
+                      newCreatures.push({
+                        id: Math.random(),
+                        type: 'tadpole',
+                        x: (frogs[i].x + frogs[j].x) / 2 + (Math.random() - 0.5) * 25,
+                        y: (frogs[i].y + frogs[j].y) / 2 + (Math.random() - 0.5) * 25,
+                        vx: (Math.random() - 0.5) * 1,
+                        vy: (Math.random() - 0.5) * 1,
+                        age: 0,
+                        alive: true,
+                        lifespan: babyLifespan(),
+                        breedingCooldown: 0,
+                      });
+                    }
                     frogBreedingIds.add(frogs[i].id);
                     frogBreedingIds.add(frogs[j].id);
                   }
@@ -259,18 +322,21 @@ function App() {
               for (let j = i + 1; j < mosquitoes.length; j++) {
                 if (distance(mosquitoes[i], mosquitoes[j]) < 80) {
                   if (Math.random() < 0.48 && canAddCreature()) {
-                    newCreatures.push({
-                      id: Math.random(),
-                      type: 'babyMosquito',
-                      x: (mosquitoes[i].x + mosquitoes[j].x) / 2 + (Math.random() - 0.5) * 30,
-                      y: (mosquitoes[i].y + mosquitoes[j].y) / 2 + (Math.random() - 0.5) * 30,
-                      vx: (Math.random() - 0.5) * 1,
-                      vy: (Math.random() - 0.5) * 1,
-                      age: 0,
-                      alive: true,
-                      lifespan: 3700,
-                      breedingCooldown: 0,
-                    });
+                    // Twin babies per successful breed
+                    for (let k = 0; k < 2; k++) {
+                      newCreatures.push({
+                        id: Math.random(),
+                        type: 'babyMosquito',
+                        x: (mosquitoes[i].x + mosquitoes[j].x) / 2 + (Math.random() - 0.5) * 30,
+                        y: (mosquitoes[i].y + mosquitoes[j].y) / 2 + (Math.random() - 0.5) * 30,
+                        vx: (Math.random() - 0.5) * 1,
+                        vy: (Math.random() - 0.5) * 1,
+                        age: 0,
+                        alive: true,
+                        lifespan: babyLifespan(),
+                        breedingCooldown: 0,
+                      });
+                    }
                     mosquitoBreedingIds.add(mosquitoes[i].id);
                     mosquitoBreedingIds.add(mosquitoes[j].id);
                   }
@@ -363,59 +429,34 @@ function App() {
           });
           modified = modified.filter(c => !heronEaten.has(c.id));
 
-          // HARD POPULATION CAP: Never exceed 550 total prey
+          // HARD POPULATION CAP: Never exceed 550 total prey. Trims
+          // proportionally from whichever types are actually overpopulated
+          // (previously only ever culled frogs/fish, which let tadpoles/
+          // babies balloon unchecked once frogs/fish got capped instead).
           let allCreatures = [...modified, ...newCreatures];
           const maxPopulation = 550;
-          
+
           if (allCreatures.length > maxPopulation) {
-            // Count current populations
-            const frogs = allCreatures.filter(c => c.type === 'frog').length;
-            const fish = allCreatures.filter(c => c.type === 'fish').length;
-            const excessPopulation = allCreatures.length - maxPopulation;
-            
-            // Remove excess proportionally from whichever is more abundant
-            // This maintains balance and avoids one species being wiped out
-            const imbalance = Math.abs(frogs - fish);
-            
-            if (imbalance > 20) {
-              // Species are imbalanced - remove from the more abundant one
-              if (frogs > fish) {
-                const frogsToRemove = Math.min(frogs - Math.ceil(frogs / 2), excessPopulation);
-                let removed = 0;
-                allCreatures = allCreatures.filter(c => {
-                  if (c.type === 'frog' && removed < frogsToRemove) {
-                    removed++;
-                    return false;
-                  }
-                  return true;
-                });
-              } else {
-                const fishToRemove = Math.min(fish - Math.ceil(fish / 2), excessPopulation);
-                let removed = 0;
-                allCreatures = allCreatures.filter(c => {
-                  if (c.type === 'fish' && removed < fishToRemove) {
-                    removed++;
-                    return false;
-                  }
-                  return true;
-                });
+            const excess = allCreatures.length - maxPopulation;
+            const counts = {};
+            allCreatures.forEach(c => {
+              if (c.type !== 'heron') counts[c.type] = (counts[c.type] || 0) + 1;
+            });
+            const cappableTotal = Object.values(counts).reduce((a, b) => a + b, 0) || 1;
+            const removePerType = {};
+            Object.keys(counts).forEach(t => {
+              removePerType[t] = Math.min(counts[t] - 1, Math.round(excess * (counts[t] / cappableTotal)));
+            });
+            const removedTracker = {};
+            allCreatures = allCreatures.filter(c => {
+              if (c.type === 'heron') return true;
+              const limit = removePerType[c.type] || 0;
+              if (limit > 0) {
+                removedTracker[c.type] = (removedTracker[c.type] || 0) + 1;
+                return removedTracker[c.type] > limit;
               }
-            } else {
-              // Species are balanced - remove equally from both
-              const removePerSpecies = Math.ceil(excessPopulation / 2);
-              let frogsRemoved = 0, fishRemoved = 0;
-              allCreatures = allCreatures.filter(c => {
-                if (c.type === 'frog' && frogsRemoved < removePerSpecies) {
-                  frogsRemoved++;
-                  return false;
-                }
-                if (c.type === 'fish' && fishRemoved < removePerSpecies) {
-                  fishRemoved++;
-                  return false;
-                }
-                return true;
-              });
-            }
+              return true;
+            });
           }
 
           return allCreatures;
@@ -496,7 +537,7 @@ function App() {
               const CANVAS_H = window.innerHeight;
               if (updated.x < 0) updated.x += CANVAS_W;
               if (updated.x > CANVAS_W) updated.x -= CANVAS_W;
-              if (updated.y < 50) updated.y = 50;
+              if (updated.y < 10) updated.y = 10;
               if (updated.y > CANVAS_H - 50) updated.y = CANVAS_H - 50;
 
               return {
@@ -523,7 +564,7 @@ function App() {
     return () => clearInterval(gameLoop);
   }, [isPaused, creatures, gameSpeed]);
 
-  const updateCreature = (creature, allCreatures, speedMult = 1, plantBites) => {
+  const updateCreature = (creature, allCreatures, speedMult = 1, plantBites, mosquitoList, preyList, insectBites) => {
     const updated = { ...creature };
     updated.age = (updated.age || 0) + speedMult;
 
@@ -533,8 +574,8 @@ function App() {
 
     // ===== TADPOLE BEHAVIOR =====
     if (creature.type === 'tadpole') {
-      const nearbyMosquito = allCreatures.find(
-        c => c.type === 'mosquito' && distance(creature, c) < 120
+      const nearbyMosquito = (mosquitoList || allCreatures.filter(c => c.type === 'mosquito')).find(
+        c => distance(creature, c) < 120
       );
       
       if (nearbyMosquito) {
@@ -559,9 +600,8 @@ function App() {
     }
     // ===== MOSQUITO BEHAVIOR =====
     else if (creature.type === 'mosquito') {
-      const prey = allCreatures.filter(c => 
-        (c.type === 'tadpole' || c.type === 'babyFish') && distance(creature, c) < 150
-      );
+      const prey = (preyList || allCreatures.filter(c => c.type === 'tadpole' || c.type === 'babyFish'))
+        .filter(c => distance(creature, c) < 150);
 
       if (prey.length > 0) {
         // Hunt nearest prey (tadpoles or baby fish)
@@ -612,13 +652,13 @@ function App() {
     }
 
     // ===== HUNGER & GRAZING (frogs, tadpoles, baby fish, baby mosquito
-    // fish nibble on river plants) =====
+    // fish nibble on seaweed and insects) =====
     // Hunger arrives on a random per-creature timer rather than a fixed
     // clock, so the population doesn't all get hungry in lockstep.
     const GRAZERS = ['frog', 'tadpole', 'babyFish', 'babyMosquito'];
     if (GRAZERS.includes(creature.type)) {
       if (updated.hungerTimer === undefined) {
-        updated.hungerTimer = 900 + Math.random() * 1800; // 5-15s at 60fps
+        updated.hungerTimer = 900 + Math.random() * 1800; // first hunger: 15-30s
       }
       updated.hungerTimer -= speedMult;
       if (updated.hungerTimer <= 0 && !updated.hungry) {
@@ -630,34 +670,39 @@ function App() {
         let target = null;
         let bestDist = Infinity;
         plantsRef.current.forEach(p => {
-          if (p.amount < 0.15) return; // nothing worth eating here
+          if (p.amount < 0.15) return; // stripped bare - not worth the trip
           const d = Math.hypot(creature.x - p.x, creature.y - plantY);
-          if (d < bestDist) {
-            bestDist = d;
-            target = p;
-          }
+          if (d < bestDist) { bestDist = d; target = { kind: 'plant', id: p.id, x: p.x, y: plantY }; }
+        });
+        (insectsRef.current || []).forEach(ins => {
+          const d = Math.hypot(creature.x - ins.x, creature.y - ins.y);
+          if (d < bestDist) { bestDist = d; target = { kind: 'insect', id: ins.id, x: ins.x, y: ins.y }; }
         });
 
         if (target) {
           const dx = target.x - creature.x;
-          const dy = plantY - creature.y;
+          const dy = target.y - creature.y;
           const dist = Math.sqrt(dx * dx + dy * dy) || 1;
           if (dist < 18) {
-            // Close enough to graze
-            if (plantBites) plantBites.push({ id: target.id, amount: 0.22 + Math.random() * 0.1 });
+            // Close enough to eat
+            if (target.kind === 'plant' && plantBites) {
+              plantBites.push({ id: target.id, amount: 0.22 + Math.random() * 0.1 });
+            } else if (target.kind === 'insect' && insectBites) {
+              insectBites.push(target.id);
+            }
             updated.hungry = false;
-            updated.hungerTimer = 300 + Math.random() * 600;
+            updated.hungerTimer = 1800 + Math.random() * 1800; // fed: 30-60s before hungry again
           } else {
             currentSpeed = 1.8;
             dirX = (dx / dist) * currentSpeed;
             dirY = (dy / dist) * currentSpeed;
           }
         }
-        // If every patch is currently stripped bare, there's nothing to
-        // seek - the creature stays visibly "hungry" (see the indicator in
-        // EcosystemCanvas) and just carries on with its normal wandering
-        // above. This never affects survival, purely a visualization of
-        // competition for a limited food source.
+        // If nothing edible is in range (seaweed stripped bare, no insects
+        // nearby), there's nothing to seek - the creature stays visibly
+        // "hungry" (see the indicator in EcosystemCanvas) and just carries
+        // on with its normal wandering above. This never affects survival,
+        // purely a visualization of competition for a limited food source.
       }
     }
 
@@ -738,7 +783,7 @@ function App() {
         vy: (Math.random() - 0.5) * 1.5,
         age: 0,
         alive: true,
-        lifespan: 46000,
+        lifespan: adultLifespan(),
         breedingCooldown: 0,
       });
     }
@@ -753,7 +798,7 @@ function App() {
         vy: (Math.random() - 0.5) * 1.5,
         age: 0,
         alive: true,
-        lifespan: 3700,
+        lifespan: babyLifespan(),
         breedingCooldown: 0,
       });
     }
@@ -768,7 +813,7 @@ function App() {
         vy: (Math.random() - 0.5) * 1.5,
         age: 0,
         alive: true,
-        lifespan: 46000,
+        lifespan: adultLifespan(),
         breedingCooldown: 0,
       });
     }
@@ -783,7 +828,7 @@ function App() {
         vy: (Math.random() - 0.5) * 1.5,
         age: 0,
         alive: true,
-        lifespan: 46000,
+        lifespan: adultLifespan(),
         breedingCooldown: 0,
       });
     }
@@ -802,6 +847,22 @@ function App() {
       });
     }
     setPlants(newPlants);
+
+    // Insects - surface flies and underwater nymphs, a second food source
+    // alongside seaweed for the same grazers.
+    const newInsects = [];
+    for (let i = 0; i < 18; i++) {
+      const surface = i % 2 === 0;
+      newInsects.push({
+        id: Math.random(),
+        x: Math.random() * (window.innerWidth - 40) + 20,
+        y: surface ? 15 + Math.random() * 25 : 70 + Math.random() * (window.innerHeight - 160),
+        vx: (Math.random() - 0.5) * 0.6,
+        vy: (Math.random() - 0.5) * 0.6,
+        surface,
+      });
+    }
+    setInsects(newInsects);
 
     setRobots([]);
     setIsPaused(false);
@@ -859,7 +920,7 @@ function App() {
   return (
     <div className="app">
       <div className="river-scene">
-        <EcosystemCanvas creatures={creatures} robots={robots} plants={plants} isPaused={isPaused} onWaterTouch={handleWaterTouch} />
+        <EcosystemCanvas creatures={creatures} robots={robots} plants={plants} insects={insects} isPaused={isPaused} onWaterTouch={handleWaterTouch} />
         
         {/* Overlay controls */}
         <div className="scene-overlay">
