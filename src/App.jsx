@@ -618,7 +618,7 @@ function App() {
     const GRAZERS = ['frog', 'tadpole', 'babyFish', 'babyMosquito'];
     if (GRAZERS.includes(creature.type)) {
       if (updated.hungerTimer === undefined) {
-        updated.hungerTimer = 300 + Math.random() * 600; // 5-15s at 60fps
+        updated.hungerTimer = 900 + Math.random() * 1800; // 5-15s at 60fps
       }
       updated.hungerTimer -= speedMult;
       if (updated.hungerTimer <= 0 && !updated.hungry) {
