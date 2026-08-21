@@ -609,10 +609,10 @@ const EcosystemCanvas = ({ creatures, robots, plants, isPaused, onWaterTouch }) 
     });
 
     // Ripples from screen touches
-    const now = Date.now();
-    ripplesRef.current = ripplesRef.current.filter(r => now - r.startTime < 900);
+    const currentTimestamp = Date.now();
+    ripplesRef.current = ripplesRef.current.filter(r => currentTimestamp - r.startTime < 900);
     ripplesRef.current.forEach(r => {
-      const age = now - r.startTime;
+      const age = currentTimestamp - r.startTime;
       const progress = age / 900;
       [0, 130].forEach(delay => {
         const p = Math.max(0, Math.min(1, progress - delay / 900));
