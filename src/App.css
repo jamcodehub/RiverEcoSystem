@@ -75,21 +75,19 @@ body {
   align-self: stretch;
 }
 
-.bottom-controls {
+.side-controls {
   pointer-events: auto;
   position: fixed;
-  left: 50%;
-  bottom: max(16px, env(safe-area-inset-bottom));
-  transform: translateX(-50%);
+  left: 0;
+  top: 70px;
   background: #ffffff;
   border: 1px solid #e2e5ea;
-  border-radius: 10px;
-  box-shadow: 0 4px 16px rgba(20, 24, 32, 0.15);
-  display: flex;
-  justify-content: center;
+  border-left: none;
+  border-radius: 0 10px 10px 0;
+  box-shadow: 4px 4px 16px rgba(20, 24, 32, 0.15);
   padding: 8px;
-  width: fit-content;
-  max-width: calc(100% - 24px);
+  max-height: calc(100vh - 90px);
+  overflow-y: auto;
   z-index: 200;
 }
 
@@ -231,10 +229,15 @@ body {
 /* ============ Controls ============ */
 .controls {
   display: flex;
-  gap: 10px;
-  flex-wrap: wrap;
-  justify-content: center;
-  padding: 8px;
+  flex-direction: column;
+  gap: 8px;
+  align-items: stretch;
+  padding: 4px;
+}
+
+.controls .btn {
+  width: 100%;
+  text-align: center;
 }
 
 .btn {
@@ -312,7 +315,81 @@ body {
   background: #eef1f5;
 }
 
-/* ============ Telemetry Modal ============ */
+/* ============ Victory Popup ============ */
+.victory-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(10, 14, 28, 0.75);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 500;
+  animation: fadeIn 0.3s;
+}
+
+.victory-card {
+  position: relative;
+  background: linear-gradient(160deg, #fffdf5, #fff3d1);
+  border: 2px solid #e8b923;
+  border-radius: 16px;
+  padding: 40px 48px;
+  text-align: center;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4), 0 0 40px rgba(255, 215, 0, 0.3);
+  overflow: hidden;
+  max-width: 90vw;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  animation: slideUp 0.35s;
+}
+
+.victory-title {
+  font-size: 22px;
+  font-weight: 800;
+  color: #7a5c00;
+  margin: 16px 0 24px;
+}
+
+.victory-continue-btn {
+  background: #e8b923;
+  color: #4a3800;
+  border: none;
+  padding: 12px 32px;
+  border-radius: 8px;
+  font-weight: 700;
+  font-size: 15px;
+  cursor: pointer;
+}
+
+.victory-continue-btn:hover {
+  background: #d4a917;
+}
+
+.confetti-piece {
+  position: absolute;
+  bottom: 20%;
+  border-radius: 1px;
+  animation-name: confetti-shoot;
+  animation-timing-function: ease-out;
+  animation-fill-mode: forwards;
+  z-index: 1;
+}
+
+@keyframes confetti-shoot {
+  0% {
+    transform: translate(0, 0) rotate(0deg);
+    opacity: 1;
+  }
+  75% {
+    opacity: 1;
+  }
+  100% {
+    transform: translate(var(--drift), -320px) rotate(540deg);
+    opacity: 0;
+  }
+}
+
+
 .telemetry-modal {
   background: #eef1f5;
   border: none;
@@ -1671,7 +1748,8 @@ body {
     grid-template-columns: repeat(2, 1fr);
   }
 
-  .scene-overlay {
+  .side-controls {
+    top: 60px;
     padding: 6px;
   }
 
@@ -1682,7 +1760,7 @@ body {
 
   .controls {
     gap: 6px;
-    padding: 6px;
+    padding: 4px;
   }
 
   .btn {

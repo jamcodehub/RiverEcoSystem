@@ -30,14 +30,6 @@ const AVAILABLE_BLOCKS = [
     isAction: true,
   },
   {
-    id: 'motor-eat',
-    label: 'motor rotate (eat)',
-    description: 'Capture and eat target',
-    category: 'motor',
-    code: '  > motor rotate (eat)',
-    isAction: true,
-  },
-  {
     id: 'wait',
     label: 'wait (0.5 seconds)',
     description: 'Pause before next action',
@@ -178,7 +170,7 @@ const getBlockColor = (category) => {
   }
 };
 
-const RobotBuilder = ({ onDeploy, onClose, robotPlans, setRobotPlans, activeRobotId, setActiveRobotId, deployedPlanIds = [] }) => {
+const RobotBuilder = ({ onDeploy, onClose, robotPlans, setRobotPlans, activeRobotId, setActiveRobotId, deployedPlanIds = [], onDeleteRobot }) => {
   const robots = robotPlans;
   const setRobots = setRobotPlans;
   const activeRobot = robots.find(r => r.id === activeRobotId);
@@ -222,6 +214,7 @@ const RobotBuilder = ({ onDeploy, onClose, robotPlans, setRobotPlans, activeRobo
     const updated = robots.filter(r => r.id !== id);
     setRobots(updated);
     setActiveRobotId(updated[0].id);
+    if (onDeleteRobot) onDeleteRobot(id); // also remove it from the live field if deployed
   };
 
   const updateRobotColor = (color) => {

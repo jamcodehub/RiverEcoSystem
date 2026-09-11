@@ -18,6 +18,9 @@ function App() {
   const [isPaused, setIsPaused] = useState(false);
   const [showRobotModal, setShowRobotModal] = useState(false);
   const [showTelemetry, setShowTelemetry] = useState(false);
+  const [showVictory, setShowVictory] = useState(false);
+  const victoryShownRef = useRef(false);
+  const mosquitoEverPresentRef = useRef(false);
   const [gameTime, setGameTime] = useState(0);
   const [robotPlans, setRobotPlans] = useState([
     { id: 1, name: 'Robot 1', code: [], color: '#4ECDC4' }
@@ -98,6 +101,17 @@ function App() {
     }
 
     prevCreaturesRef.current = currentCounts;
+
+    // Victory condition: every mosquito fish (adults and babies) gone,
+    // after there having actually been some to begin with (otherwise this
+    // would fire immediately on a fresh reset before anything happens).
+    const totalInvasiveNow = currentCounts.mosquito + currentCounts.babyMosquito;
+    if (totalInvasiveNow > 0) {
+      mosquitoEverPresentRef.current = true;
+    } else if (mosquitoEverPresentRef.current && !victoryShownRef.current) {
+      victoryShownRef.current = true;
+      setShowVictory(true);
+    }
   }, [creatures]);
 
   // Game loop
@@ -475,7 +489,7 @@ function App() {
               // capture a mosquito fish - "motor rotate (swim)" also contains
               // the substring "rotate", so checking for that alone let a
               // robot with just a swim block kill on contact too.
-              const hasCaptureCommand = robot.code.some(b => typeof b === 'string' && (b.includes('trap') || b.includes('eat')));
+              const hasCaptureCommand = robot.code.some(b => typeof b === 'string' && b.includes('trap'));
 
               // Check for nearby mosquitoes
               const HUNT_RANGE = 250; // Extended vision
@@ -866,6 +880,9 @@ function App() {
 
     setRobots([]);
     setIsPaused(false);
+    setShowVictory(false);
+    victoryShownRef.current = false;
+    mosquitoEverPresentRef.current = false;
   };
 
   const deployRobot = (code, color = '#4ECDC4', planId = null) => {
@@ -906,6 +923,12 @@ function App() {
     setShowRobotModal(false); // Close modal so user can see deployed robot - tabs persist on reopen
   };
 
+  // Deleting a robot's plan in the builder should also remove it from the
+  // field if it was already deployed there.
+  const deleteRobotFromField = (planId) => {
+    setRobots(prev => prev.filter(r => r.planId !== planId));
+  };
+
   const stats = {
     frogs: creatures.filter(c => c.type === 'frog').length,
     fish: creatures.filter(c => c.type === 'fish').length,
@@ -928,7 +951,7 @@ function App() {
             <StatsPanel stats={stats} />
           </div>
           
-          <div className="bottom-controls">
+          <div className="side-controls">
             <div className="controls">
               <button onClick={() => setShowRobotModal(true)} className="btn btn-primary">
                 Build Robot
@@ -950,21 +973,25 @@ function App() {
               </button>
               
               {/* Game Speed Controls */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginLeft: '20px', borderLeft: '1px solid #ccc', paddingLeft: '20px' }}>
-                <span style={{ fontSize: '12px', fontWeight: 'bold' }}>Speed:</span>
-                {[1, 2, 4, 8].map(speed => (
-                  <button
-                    key={speed}
-                    onClick={() => setGameSpeed(speed)}
-                    className="btn btn-secondary"
-                    style={{
-                      backgroundColor: gameSpeed === speed ? '#4CAF50' : undefined,
-                      color: gameSpeed === speed ? 'white' : undefined,
-                    }}
-                  >
-                    {speed}x
-                  </button>
-                ))}
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: '8px', marginTop: '8px', borderTop: '1px solid #e2e5ea', paddingTop: '8px' }}>
+                <span style={{ fontSize: '12px', fontWeight: 'bold', textAlign: 'center' }}>Speed</span>
+                <div style={{ display: 'flex', gap: '6px', justifyContent: 'center' }}>
+                  {[1, 2, 4, 8].map(speed => (
+                    <button
+                      key={speed}
+                      onClick={() => setGameSpeed(speed)}
+                      className="btn btn-secondary"
+                      style={{
+                        flex: 1,
+                        padding: '6px 4px',
+                        backgroundColor: gameSpeed === speed ? '#4CAF50' : undefined,
+                        color: gameSpeed === speed ? 'white' : undefined,
+                      }}
+                    >
+                      {speed}x
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
           </div>
@@ -980,6 +1007,7 @@ function App() {
           activeRobotId={activeRobotPlanId}
           setActiveRobotId={setActiveRobotPlanId}
           deployedPlanIds={robots.map(r => r.planId)}
+          onDeleteRobot={deleteRobotFromField}
         />
       )}
 
@@ -989,6 +1017,63 @@ function App() {
           telemetry={telemetry}
           stats={stats}
         />
+      )}
+
+      {showVictory && (
+        <div className="victory-overlay">
+          <div className="victory-card">
+            {Array.from({ length: 45 }).map((_, i) => {
+              const colors = ['#FFD700', '#FFC800', '#FFF3C4', '#E8B923', '#FFEA70'];
+              const left = Math.random() * 100;
+              const delay = Math.random() * 0.5;
+              const duration = 1.2 + Math.random() * 0.9;
+              const size = 5 + Math.random() * 5;
+              const drift = (Math.random() - 0.5) * 160;
+              return (
+                <div
+                  key={i}
+                  className="confetti-piece"
+                  style={{
+                    left: `${left}%`,
+                    width: `${size}px`,
+                    height: `${size * 1.6}px`,
+                    backgroundColor: colors[i % colors.length],
+                    animationDelay: `${delay}s`,
+                    animationDuration: `${duration}s`,
+                    '--drift': `${drift}px`,
+                  }}
+                />
+              );
+            })}
+
+            <svg width="72" height="72" viewBox="0 0 64 64" fill="none" style={{ position: 'relative', zIndex: 2 }}>
+              <defs>
+                <linearGradient id="goldGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#FFF3C4" />
+                  <stop offset="50%" stopColor="#FFD700" />
+                  <stop offset="100%" stopColor="#D4A017" />
+                </linearGradient>
+              </defs>
+              <path d="M20 8h24v14a12 12 0 0 1-24 0V8z" fill="url(#goldGrad)" stroke="#B8860B" strokeWidth="1.5" />
+              <path d="M20 10h-8a6 6 0 0 0 6 10" fill="none" stroke="#B8860B" strokeWidth="2.5" strokeLinecap="round" />
+              <path d="M44 10h8a6 6 0 0 1-6 10" fill="none" stroke="#B8860B" strokeWidth="2.5" strokeLinecap="round" />
+              <rect x="28" y="34" width="8" height="10" fill="url(#goldGrad)" />
+              <rect x="20" y="44" width="24" height="6" rx="2" fill="url(#goldGrad)" stroke="#B8860B" strokeWidth="1.5" />
+              <rect x="16" y="50" width="32" height="6" rx="2" fill="#D4A017" />
+            </svg>
+
+            <div className="victory-title" style={{ position: 'relative', zIndex: 2 }}>
+              You saved the Eco System!
+            </div>
+            <button
+              className="victory-continue-btn"
+              style={{ position: 'relative', zIndex: 2 }}
+              onClick={() => setShowVictory(false)}
+            >
+              Continue
+            </button>
+          </div>
+        </div>
       )}
     </div>
   );

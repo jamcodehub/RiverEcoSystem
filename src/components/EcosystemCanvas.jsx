@@ -27,6 +27,18 @@ const EcosystemCanvas = ({ creatures, robots, plants, insects, isPaused, onWater
   const simTimeRef = useRef(0);
   const lastFrameRef = useRef(null);
 
+  // Cached gradients, built once and reused every frame. A gradient
+  // defined in LOCAL coordinates (relative to a ctx.translate) is
+  // identical for every instance of that creature type, so recreating one
+  // from scratch per-creature per-frame was pure waste - at 350+ creatures
+  // that's 350+ gradient objects built 60 times a second for no reason.
+  const gradientCacheRef = useRef({});
+  const getCachedGradient = (key, build) => {
+    const cache = gradientCacheRef.current;
+    if (!cache[key]) cache[key] = build();
+    return cache[key];
+  };
+
   // Generate static reeds once, along the bottom bank only (there's no top
   // bank anymore).
   const staticReeds = useMemo(() => {
@@ -156,9 +168,12 @@ const EcosystemCanvas = ({ creatures, robots, plants, insects, isPaused, onWater
     });
 
     // Body
-    const grad = ctx.createRadialGradient(2, -1, 1, 0, 0, 9);
-    grad.addColorStop(0, '#4bd97e');
-    grad.addColorStop(1, '#2ecc71');
+    const grad = getCachedGradient('frog-body', () => {
+      const g = ctx.createRadialGradient(2, -1, 1, 0, 0, 9);
+      g.addColorStop(0, '#4bd97e');
+      g.addColorStop(1, '#2ecc71');
+      return g;
+    });
     ctx.fillStyle = grad;
     ctx.beginPath();
     ctx.ellipse(0, 0, 8, 6, 0, 0, Math.PI * 2);
@@ -222,9 +237,12 @@ const EcosystemCanvas = ({ creatures, robots, plants, insects, isPaused, onWater
     ctx.restore();
 
     // Body
-    const grad = ctx.createLinearGradient(0, -palette.h, 0, palette.h);
-    grad.addColorStop(0, palette.top);
-    grad.addColorStop(1, palette.belly);
+    const grad = getCachedGradient(`fish-body-${palette.key}`, () => {
+      const g = ctx.createLinearGradient(0, -palette.h, 0, palette.h);
+      g.addColorStop(0, palette.top);
+      g.addColorStop(1, palette.belly);
+      return g;
+    });
     ctx.fillStyle = grad;
     ctx.beginPath();
     ctx.ellipse(0, 0, palette.len, palette.h, 0, 0, Math.PI * 2);
@@ -259,10 +277,10 @@ const EcosystemCanvas = ({ creatures, robots, plants, insects, isPaused, onWater
     ctx.restore();
   };
 
-  const FISH_PALETTE = { len: 8, h: 5, tail: 7, tailW: 4, eye: 1.4, top: '#3fa9e8', belly: '#a7dcf5', fin: '#2980b9', spiky: false };
-  const BABYFISH_PALETTE = { len: 5, h: 3, tail: 4.5, tailW: 2.4, eye: 0.9, top: '#6fc3ec', belly: '#cdeeFA', fin: '#3498db', spiky: false };
-  const MOSQUITO_PALETTE = { len: 5.5, h: 3.2, tail: 5, tailW: 3, eye: 1, top: '#f4664a', belly: '#ffb199', fin: '#c0392b', spiky: true };
-  const BABYMOSQ_PALETTE = { len: 3.4, h: 2, tail: 3, tailW: 1.8, eye: 0.7, top: '#f0876f', belly: '#ffcabb', fin: '#e0654a', spiky: true };
+  const FISH_PALETTE = { key: 'fish', len: 8, h: 5, tail: 7, tailW: 4, eye: 1.4, top: '#3fa9e8', belly: '#a7dcf5', fin: '#2980b9', spiky: false };
+  const BABYFISH_PALETTE = { key: 'babyFish', len: 5, h: 3, tail: 4.5, tailW: 2.4, eye: 0.9, top: '#6fc3ec', belly: '#cdeeFA', fin: '#3498db', spiky: false };
+  const MOSQUITO_PALETTE = { key: 'mosquito', len: 5.5, h: 3.2, tail: 5, tailW: 3, eye: 1, top: '#f4664a', belly: '#ffb199', fin: '#c0392b', spiky: true };
+  const BABYMOSQ_PALETTE = { key: 'babyMosquito', len: 3.4, h: 2, tail: 3, tailW: 1.8, eye: 0.7, top: '#f0876f', belly: '#ffcabb', fin: '#e0654a', spiky: true };
 
   const drawTadpole = (ctx, x, y, creature) => {
     ctx.save();
@@ -274,9 +292,12 @@ const EcosystemCanvas = ({ creatures, robots, plants, insects, isPaused, onWater
     ctx.lineTo(2, 0);
     ctx.lineTo(9, (Math.sin((creature.age || 0) * 0.25) * 3));
     ctx.stroke();
-    const grad = ctx.createRadialGradient(-1, -1, 0.5, 0, 0, 4.2);
-    grad.addColorStop(0, '#f7c873');
-    grad.addColorStop(1, '#e8a33d');
+    const grad = getCachedGradient('tadpole-body', () => {
+      const g = ctx.createRadialGradient(-1, -1, 0.5, 0, 0, 4.2);
+      g.addColorStop(0, '#f7c873');
+      g.addColorStop(1, '#e8a33d');
+      return g;
+    });
     ctx.fillStyle = grad;
     ctx.beginPath();
     ctx.arc(-1, 0, 4.2, 0, Math.PI * 2);
@@ -305,9 +326,12 @@ const EcosystemCanvas = ({ creatures, robots, plants, insects, isPaused, onWater
     });
 
     // Body
-    const grad = ctx.createLinearGradient(0, -8, 0, 8);
-    grad.addColorStop(0, '#7c94a3');
-    grad.addColorStop(1, '#546778');
+    const grad = getCachedGradient('heron-body', () => {
+      const g = ctx.createLinearGradient(0, -8, 0, 8);
+      g.addColorStop(0, '#7c94a3');
+      g.addColorStop(1, '#546778');
+      return g;
+    });
     ctx.fillStyle = grad;
     ctx.beginPath();
     ctx.ellipse(0, 0, 20, 8, 0, 0, Math.PI * 2);
@@ -372,9 +396,12 @@ const EcosystemCanvas = ({ creatures, robots, plants, insects, isPaused, onWater
     ctx.translate(x, y);
 
     // Body (rounded)
-    const grad = ctx.createLinearGradient(0, -9, 0, 9);
-    grad.addColorStop(0, robotColor);
-    grad.addColorStop(1, 'rgba(0,0,0,0.15)');
+    const grad = getCachedGradient(`robot-body-${robotColor}`, () => {
+      const g = ctx.createLinearGradient(0, -9, 0, 9);
+      g.addColorStop(0, robotColor);
+      g.addColorStop(1, 'rgba(0,0,0,0.15)');
+      return g;
+    });
     ctx.fillStyle = robotColor;
     const r = 4;
     ctx.beginPath();
